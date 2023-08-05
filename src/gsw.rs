@@ -2,7 +2,7 @@ use core::panic;
 
 use crate::lwe::LweCiphertext;
 use crate::{decode, encode, keygen};
-use crate::{ELL, N, P, Q};
+use crate::{ELL, KEY_SIZE, N, P, Q};
 
 pub struct GswCiphertext {
     pub z_m_gt: [LweCiphertext; (N + 1) * ELL as usize],
@@ -37,7 +37,7 @@ impl GswCiphertext {
     }
 }
 
-pub fn encrypt(mu: u8, sk: [u8; N]) -> GswCiphertext {
+pub fn encrypt(mu: u8, sk: [u8; KEY_SIZE]) -> GswCiphertext {
     // init Z
     let mut z = [LweCiphertext::default(); (N + 1) * ELL as usize];
     for i in 0..z.len() {

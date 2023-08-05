@@ -1,5 +1,5 @@
 use crate::{decode, encode, keygen};
-use crate::{N, P, Q, SIGMA};
+use crate::{KEY_SIZE, N, P, Q, SIGMA};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
@@ -10,13 +10,15 @@ pub struct LweCiphertext {
 }
 
 impl LweCiphertext {
-    pub fn decrypt(&self, sk: [u8; N]) -> u8 {
-        let mut dot_prod = 0u16;
-        for j in 0..N {
-            dot_prod = (dot_prod + self.mask[j] as u16 * (sk[j] & 1) as u16) % Q as u16;
+    pub fn decrypt(&self, sk: [u8; KEY_SIZE]) -> u8 {
+        let mut dot_prod = 0u8;
+        for j in 0..N / 8 {
+            for k in 0..8 {
+                dot_prod = (dot_prod as u16 + (self.mask[j * 8 + k] * ((sk[j] >> k) & 1)) as u16)
+                    as u8
+                    % Q;
+            }
         }
-
-        println!("during decryption, dot_prod: {dot_prod}");
 
         let mu_star = self.body.wrapping_sub(dot_prod as u8) % Q;
         mu_star
@@ -44,7 +46,7 @@ impl Default for LweCiphertext {
     }
 }
 
-pub fn encrypt(mu: u8, sk: [u8; N]) -> LweCiphertext {
+pub fn encrypt(mu: u8, sk: [u8; KEY_SIZE]) -> LweCiphertext {
     // initializing normal distribution
     let sigma2 = f64::powf(SIGMA, 2.0);
     let normal = Normal::new(0.0, sigma2).unwrap();
@@ -64,8 +66,10 @@ pub fn encrypt(mu: u8, sk: [u8; N]) -> LweCiphertext {
 
     // body
     let mut dot_prod = 0u8;
-    for j in 0..N {
-        dot_prod = (dot_prod + a[j] * (sk[j] & 1)) % Q;
+    for j in 0..N / 8 {
+        for k in 0..8 {
+            dot_prod = (dot_prod + (a[j * 8 + k] * ((sk[j] >> k) & 1))) % Q;
+        }
     }
 
     let b = dot_prod + mu_star % Q;
