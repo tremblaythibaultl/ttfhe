@@ -1,5 +1,4 @@
-use crate::{decode, encode, keygen};
-use crate::{KEY_SIZE, N, P, Q, SIGMA};
+use crate::{KEY_SIZE, N, Q, SIGMA};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
