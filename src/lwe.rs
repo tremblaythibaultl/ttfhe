@@ -86,3 +86,16 @@ fn test_keygen_enc_dec() {
         assert!(pt == msg);
     }
 }
+
+#[test]
+fn test_add() {
+    let sk = crate::keygen();
+    let msg1 = 1;
+    let msg2 = 2;
+
+    let ct1 = encrypt(crate::encode(msg1), sk);
+    let ct2 = encrypt(crate::encode(msg2), sk);
+    let res = ct1.add(ct2);
+    let pt = crate::decode(res.decrypt(sk));
+    assert!(pt == msg1 + msg2);
+}
