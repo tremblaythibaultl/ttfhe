@@ -1,5 +1,5 @@
 use crate::{KEY_SIZE, N, Q, SIGMA};
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 
 #[derive(Clone, Copy)]
@@ -51,7 +51,7 @@ pub fn encrypt(mu: u8, sk: [u8; KEY_SIZE]) -> LweCiphertext {
     let normal = Normal::new(0.0, sigma2).unwrap();
 
     // sample error from discretized normal distribution over Z_q
-    let e = (normal.sample(&mut rand::thread_rng()) * Q as f64).round() as i8;
+    let e = (normal.sample(&mut rand::thread_rng()) * Q as f64).round() as i8; // this is not good. error is way to small. when error is appropriately large, enc/dec breaks.
 
     let mu_star = (((mu as i8) + e) % (Q as i8)) as u8;
 
@@ -79,8 +79,8 @@ pub fn encrypt(mu: u8, sk: [u8; KEY_SIZE]) -> LweCiphertext {
 #[test]
 fn test_keygen_enc_dec() {
     let sk = crate::keygen();
-    let msg = 2;
-    for i in 0..1000 {
+    for _ in 0..1000 {
+        let msg = thread_rng().gen_range(0..15);
         let ct = encrypt(crate::encode(msg), sk);
         let pt = crate::decode(ct.decrypt(sk));
         assert!(pt == msg);

@@ -92,6 +92,15 @@ fn decomposition_lut(val: u8) -> (i8, i8) {
 #[test]
 fn test_keygen_enc_dec() {
     let sk = crate::keygen();
+    let msg = 3;
+    let ct = encrypt(msg, sk);
+    let pt = crate::decode(ct.z_m_gt[ct.z_m_gt.len() - 1].decrypt(sk));
+    assert_eq!(pt, msg);
+}
+
+#[test]
+fn test_external_product() {
+    let sk = crate::keygen();
     let msg1 = 3;
     let msg2 = 3;
     let c1 = encrypt(msg1, sk);
@@ -99,4 +108,5 @@ fn test_keygen_enc_dec() {
     let c3 = c1.external_product(c2);
     let pt = crate::decode(c3.decrypt(sk));
     println!("pt: {pt}");
+    assert_eq!(pt, msg1 * msg2);
 }

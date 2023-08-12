@@ -16,7 +16,8 @@ fn main() {
     let c1 = crate::gsw::encrypt(msg1, sk);
     let c2 = crate::lwe::encrypt(msg2, sk);
     let c3 = c1.external_product(c2);
-    let pt = decode(c3.decrypt(sk));
+    let c4 = c3.add(c2);
+    let pt = decode(c4.decrypt(sk));
     println!("pt: {pt}");
 }
 
