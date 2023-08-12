@@ -91,7 +91,7 @@ fn decomposition_lut(val: u8) -> (i8, i8) {
 
 #[test]
 fn test_keygen_enc_dec() {
-    let sk = keygen();
+    let sk = crate::keygen();
     let msg1 = 3;
     let msg2 = 3;
     let c1 = encrypt(msg1, sk);

@@ -78,11 +78,11 @@ pub fn encrypt(mu: u8, sk: [u8; KEY_SIZE]) -> LweCiphertext {
 
 #[test]
 fn test_keygen_enc_dec() {
-    let sk = keygen();
+    let sk = crate::keygen();
     let msg = 2;
     for i in 0..1000 {
-        let ct = encrypt(encode(msg), sk);
-        let pt = decode(ct.decrypt(sk));
+        let ct = encrypt(crate::encode(msg), sk);
+        let pt = crate::decode(ct.decrypt(sk));
         assert!(pt == msg);
     }
 }
