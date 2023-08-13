@@ -73,11 +73,11 @@ impl Default for GlweCiphertext {
     }
 }
 
-fn encode(msg: u8) -> u64 {
-    ((msg as u64) << 1) + 1 << 59
+pub fn encode(msg: u8) -> u64 {
+    ((msg as u64) << 1) + 1 << 59 // msg * 2^59.5
 }
 
-fn decode(mu: u64) -> u8 {
+pub fn decode(mu: u64) -> u8 {
     (mu >> 60) as u8
 }
 

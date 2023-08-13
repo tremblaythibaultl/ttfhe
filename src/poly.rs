@@ -21,9 +21,14 @@ impl ResiduePoly {
         }
     }
 
-    pub fn add_constant(&mut self, constant: u64) -> Self {
+    pub fn add_constant(&self, constant: u64) -> Self {
+        let mut res = Self::default();
+        res.coefs[0] = self.coefs[0].wrapping_add(constant);
+        res
+    }
+
+    pub fn add_constant_assign(&mut self, constant: u64) {
         self.coefs[0] = self.coefs[0].wrapping_add(constant);
-        *self
     }
 
     pub fn sub(&self, rhs: &ResiduePoly) -> Self {
