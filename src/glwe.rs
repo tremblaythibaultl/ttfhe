@@ -10,12 +10,10 @@ pub struct GlweCiphertext {
 
 impl GlweCiphertext {
     pub fn encrypt(mu: u64, sk: [u8; KEY_SIZE]) -> GlweCiphertext {
-        let sigma2 = f64::powf(2.0, -50.0);
-        let normal = Normal::new(0.0, sigma2).unwrap();
+        let sigma = f64::powf(2.0, 39.0);
+        let normal = Normal::new(0.0, sigma).unwrap();
 
-        let e = ((normal.sample(&mut rand::thread_rng()) * f64::powf(2.0, 32.0))
-            * f64::powf(2.0, 32.0))
-        .round() as i64;
+        let e = normal.sample(&mut rand::thread_rng()).round() as i64;
         let mu_star = mu.wrapping_add_signed(e);
 
         // mask
