@@ -20,21 +20,22 @@ impl GgswCiphertext {
         mg[0] = ((msg as u64) << 1) + 1 << 61;
         mg[1] = ((msg as u64) << 1) + 1 << 59;
 
+        // TODO: need to fix this
         // add m * G^t to Z
-        for i in 0..z_m_gt.len() {
-            if i < k * ELL as usize {
-                for j in 0..z_m_gt[i].mask.len() {
-                    z_m_gt[i].mask[j].add_constant(mg[i % ELL as usize]);
-                }
-            } else {
-                z_m_gt[i].body.add_constant(mg[i % ELL as usize]);
-            }
-        }
+        // for i in 0..z_m_gt.len() {
+        //     if i < k * ELL as usize {
+        //         for j in 0..z_m_gt[i].mask.len() {
+        //             z_m_gt[i].mask[j].add_constant(mg[i % ELL as usize]);
+        //         }
+        //     } else {
+        //         z_m_gt[i].body.add_constant(mg[i % ELL as usize]);
+        //     }
+        // }
 
-        // z_m_gt[0].mask[0].add_constant_assign(mg[0]);
-        // z_m_gt[1].mask[0].add_constant_assign(mg[1]);
-        // z_m_gt[2].body.add_constant_assign(mg[0]);
-        // z_m_gt[3].body.add_constant_assign(mg[1]);
+        z_m_gt[0].mask[0].add_constant_assign(mg[0]);
+        z_m_gt[1].mask[0].add_constant_assign(mg[1]);
+        z_m_gt[2].body.add_constant_assign(mg[0]);
+        z_m_gt[3].body.add_constant_assign(mg[1]);
 
         GgswCiphertext { z_m_gt }
     }
@@ -49,7 +50,6 @@ fn test_keygen_enc_dec() {
     let sk = crate::keygen();
     for _ in 0..1000 {
         let msg = thread_rng().gen_range(0..15);
-        let msg = 2;
         let ct = GgswCiphertext::encrypt(msg, sk);
         let pt = decode(ct.decrypt(sk));
         assert!(pt == msg);
