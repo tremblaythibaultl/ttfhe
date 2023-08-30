@@ -4,12 +4,17 @@ use rand_distr::{Distribution, Normal};
 
 #[derive(Clone, Copy)]
 pub struct GlweCiphertext {
-    pub mask: [ResiduePoly; k], //todo: use Vec here
+    pub mask: [ResiduePoly; k],
     pub body: ResiduePoly,
 }
 
+#[derive(Clone, Copy)]
+pub struct SecretKey {
+    pub polys: [ResiduePoly; k],
+}
+
 impl GlweCiphertext {
-    pub fn encrypt(mu: u64, sk: [u8; KEY_SIZE]) -> GlweCiphertext {
+    pub fn encrypt(mu: u64, sk: SecretKey) -> GlweCiphertext {
         let sigma = f64::powf(2.0, 39.0);
         let normal = Normal::new(0.0, sigma).unwrap();
 
@@ -24,42 +29,29 @@ impl GlweCiphertext {
             }
         }
 
-        // optimized computation of the dot product for when k = 1
-        let mut dot_prod = ResiduePoly::default();
-        for i in 0..N / 8 {
-            for j in 0..8 {
-                if ((sk[i] >> j) & 1) == 1 {
-                    dot_prod.coefs[i * 8 + j] += mask[0].coefs[i * 8 + j];
-                }
-            }
-        }
+        // correct when k = 1
 
-        let body = dot_prod.add_constant(mu_star as u64);
+        let mut body = mask[0].mul(&sk.polys[0]);
+
+        body.add_constant_assign(mu_star as u64);
 
         GlweCiphertext { mask, body }
     }
 
-    pub fn decrypt(self, sk: [u8; KEY_SIZE]) -> u64 {
+    pub fn decrypt(self, sk: SecretKey) -> u64 {
         // optimized computation of the dot product for when k = 1
-        let mut dot_prod = ResiduePoly::default();
-        for i in 0..N / 8 {
-            for j in 0..8 {
-                if ((sk[i] >> j) & 1) == 1 {
-                    dot_prod.coefs[i * 8 + j] += self.mask[0].coefs[i * 8 + j];
-                }
-            }
-        }
+        let mut body = self.mask[0].mul(&sk.polys[0]);
 
-        let mu_star = self.body.sub(&dot_prod);
+        let mu_star = self.body.sub(&body);
         mu_star.coefs[0]
     }
 
     fn add(self, rhs: Self) -> Self {
         let mut res = GlweCiphertext::default();
         for i in 0..k {
-            res.mask[i] = self.mask[i].add(&rhs.mask[i]);
+            res.mask[i] = self.mask[i].add(rhs.mask[i]);
         }
-        res.body = self.body.add(&rhs.body);
+        res.body = self.body.add(rhs.body);
         res
     }
 }
@@ -73,18 +65,28 @@ impl Default for GlweCiphertext {
     }
 }
 
+pub fn keygen() -> SecretKey {
+    let mut polys = [ResiduePoly::default(); k];
+    for i in 0..k {
+        for j in 0..N {
+            polys[i].coefs[j] = thread_rng().gen_range(0..2);
+        }
+    }
+    SecretKey { polys }
+}
+
 pub fn encode(msg: u8) -> u64 {
-    ((msg as u64) << 1) + 1 << 59 // msg * 2^59.5
+    (msg as u64) << 60
 }
 
 pub fn decode(mu: u64) -> u8 {
-    (mu >> 60) as u8
+    ((((mu >> 59).wrapping_add(1)) >> 1) % 16) as u8
 }
 
 #[test]
 fn test_keygen_enc_dec() {
-    let sk = crate::keygen();
-    for _ in 0..1000 {
+    let sk = keygen();
+    for _ in 0..100 {
         let msg = thread_rng().gen_range(0..15);
         let ct = GlweCiphertext::encrypt(encode(msg), sk);
         let pt = decode(ct.decrypt(sk));
@@ -94,12 +96,14 @@ fn test_keygen_enc_dec() {
 
 #[test]
 fn test_add() {
-    let sk = crate::keygen();
-    let msg1 = 2;
-    let msg2 = 9;
-    let ct1 = GlweCiphertext::encrypt(encode(msg1), sk);
-    let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
-    let res = ct1.add(ct2);
-    let pt = decode(res.decrypt(sk));
-    assert!(pt == msg1 + msg2);
+    let sk = keygen();
+    for _ in 0..100 {
+        let msg1 = thread_rng().gen_range(0..15);
+        let msg2 = thread_rng().gen_range(0..15);
+        let ct1 = GlweCiphertext::encrypt(encode(msg1), sk);
+        let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
+        let res = ct1.add(ct2);
+        let pt = decode(res.decrypt(sk));
+        assert!(pt == (msg1 + msg2) % 16);
+    }
 }

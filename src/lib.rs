@@ -5,12 +5,12 @@ pub mod lwe;
 pub mod poly;
 
 use rand::Rng;
-pub const N: usize = 64; // degree of irreducible polynomial P = X^N + 1
+pub const N: usize = 1024; // degree of irreducible polynomial P = X^N + 1
 #[allow(non_upper_case_globals)]
 pub const k: usize = 1;
 pub const KEY_SIZE: usize = N / 8;
 pub const ELL: u8 = 2;
-pub const P: u8 = 16; //
+pub const P: u8 = 16;
 pub const Q: u8 = 64; // erroneous - used for testing purposes.
 pub const SIGMA: f64 = 0.000000049029381729;
 
