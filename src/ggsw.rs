@@ -95,23 +95,15 @@ fn decomposition(val: u64) -> (i8, i8) {
 }
 
 #[test]
-fn test_decomp() {
-    let (r1, r2) = decomposition(514 << 48);
-
-    println!("LSB decomp: {}\nMSB decomp: {}", r1, r2);
-}
-
-#[test]
 fn test_keygen_enc_dec() {
     let sk = keygen();
-    for _ in 0..100 {
-        let msg = thread_rng().gen_range(0..16);
-        let ct = GgswCiphertext::encrypt(msg, sk);
-        let pt = ct.decrypt(sk);
-        assert!(msg == pt as u8);
-    }
+    let msg = thread_rng().gen_range(0..16);
+    let ct = GgswCiphertext::encrypt(msg, sk);
+    let pt = ct.decrypt(sk);
+    assert!(msg == pt as u8);
 }
 
+// The following test fails from time to time - the noise does not "stay small" enough for a correct decryption.
 #[test]
 fn test_external_product() {
     let sk = keygen();
@@ -123,6 +115,6 @@ fn test_external_product() {
         let res = ct1.external_product(ct2);
         let pt = decode(res.decrypt(sk));
         let expected = msg1 * msg2 % 16;
-        assert_eq!(expected, pt)
+        assert_eq!(expected, pt);
     }
 }

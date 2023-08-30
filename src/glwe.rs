@@ -1,5 +1,5 @@
-use crate::{k, poly::ResiduePoly, KEY_SIZE, N};
-use rand::{random, thread_rng, Rng};
+use crate::{k, poly::ResiduePoly, N};
+use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 
 #[derive(Clone, Copy)]
@@ -40,7 +40,7 @@ impl GlweCiphertext {
 
     pub fn decrypt(self, sk: SecretKey) -> u64 {
         // optimized computation of the dot product for when k = 1
-        let mut body = self.mask[0].mul(&sk.polys[0]);
+        let body = self.mask[0].mul(&sk.polys[0]);
 
         let mu_star = self.body.sub(&body);
         mu_star.coefs[0]
@@ -87,7 +87,7 @@ pub fn decode(mu: u64) -> u8 {
 fn test_keygen_enc_dec() {
     let sk = keygen();
     for _ in 0..100 {
-        let msg = thread_rng().gen_range(0..15);
+        let msg = thread_rng().gen_range(0..16);
         let ct = GlweCiphertext::encrypt(encode(msg), sk);
         let pt = decode(ct.decrypt(sk));
         assert!(pt == msg);
@@ -98,8 +98,8 @@ fn test_keygen_enc_dec() {
 fn test_add() {
     let sk = keygen();
     for _ in 0..100 {
-        let msg1 = thread_rng().gen_range(0..15);
-        let msg2 = thread_rng().gen_range(0..15);
+        let msg1 = thread_rng().gen_range(0..16);
+        let msg2 = thread_rng().gen_range(0..16);
         let ct1 = GlweCiphertext::encrypt(encode(msg1), sk);
         let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
         let res = ct1.add(ct2);

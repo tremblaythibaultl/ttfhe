@@ -1,7 +1,5 @@
 pub mod ggsw;
 pub mod glwe;
-pub mod gsw;
-pub mod lwe;
 pub mod poly;
 
 use rand::Rng;
