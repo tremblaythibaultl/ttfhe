@@ -19,6 +19,7 @@ impl GlweCiphertext {
         let normal = Normal::new(0.0, sigma).unwrap();
 
         let e = normal.sample(&mut rand::thread_rng()).round() as i64;
+        // let e = 0;
         let mu_star = mu.wrapping_add_signed(e);
 
         // mask
@@ -80,7 +81,7 @@ pub fn encode(msg: u8) -> u64 {
 }
 
 pub fn decode(mu: u64) -> u8 {
-    ((((mu >> 59).wrapping_add(1)) >> 1) % 16) as u8
+    ((((mu >> 59) + 1) >> 1) % 16) as u8
 }
 
 #[test]

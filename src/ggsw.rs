@@ -81,11 +81,11 @@ fn apply_g_inverse(ct: GlweCiphertext) -> [ResiduePoly; (k + 1) * ELL as usize] 
     res
 }
 
-//TODO: do decomposition with B=256
-// => need to decompose the 16 MSBs of the 64b coefficient into two signed 8-bit integers
+// Approximate decomposition with B = 256 and ell = 2.
+// Takes a polynomial coefficient in Z_2^64 and decomposes its 16 MSBs in two signed 8-bit integers.
 fn decomposition(val: u64) -> (i8, i8) {
     let mut rounded_val = val >> 47;
-    rounded_val += val & 1;
+    rounded_val += rounded_val & 1;
     rounded_val = rounded_val >> 1;
     if rounded_val & 128 == 128 {
         (rounded_val as i8, ((rounded_val >> 8) + 1) as i8)
@@ -97,24 +97,32 @@ fn decomposition(val: u64) -> (i8, i8) {
 #[test]
 fn test_keygen_enc_dec() {
     let sk = keygen();
-    let msg = thread_rng().gen_range(0..16);
-    let ct = GgswCiphertext::encrypt(msg, sk);
-    let pt = ct.decrypt(sk);
-    assert!(msg == pt as u8);
+    for _ in 0..100 {
+        let msg = thread_rng().gen_range(0..16);
+        let ct = GgswCiphertext::encrypt(msg, sk);
+        let pt = ct.decrypt(sk);
+        assert!(msg == pt as u8);
+    }
 }
 
-// The following test fails from time to time - the noise does not "stay small" enough for a correct decryption.
+// The following test fails from time to time. In these cases, the result is off by one (result = expected - 1)
+// It seems the negative error is growing too large?
 #[test]
 fn test_external_product() {
     let sk = keygen();
-    for _ in 0..100 {
+    for i in 0..1000 {
         let msg1 = thread_rng().gen_range(0..16);
         let msg2 = thread_rng().gen_range(0..16);
         let ct1 = GgswCiphertext::encrypt(msg1, sk);
         let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
         let res = ct1.external_product(ct2);
         let pt = decode(res.decrypt(sk));
-        let expected = msg1 * msg2 % 16;
+        let expected: u8 = msg1 * msg2 % 16;
+        if expected != pt {
+            println!("expected: {}, pt: {}", expected, pt);
+            println!("mu: {}", res.decrypt(sk));
+        }
+
         assert_eq!(expected, pt);
     }
 }
