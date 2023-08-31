@@ -1,8 +1,11 @@
-use crate::glwe::{decode, encode, keygen, SecretKey};
+use crate::glwe::SecretKey;
+#[cfg(test)]
+use crate::glwe::{decode, encode, keygen};
 use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
-use rand::{random, thread_rng, Rng};
+#[cfg(test)]
+use rand::{thread_rng, Rng};
 
-struct GgswCiphertext {
+pub struct GgswCiphertext {
     z_m_gt: [GlweCiphertext; (k + 1) * ELL],
 }
 
