@@ -1,10 +1,9 @@
-use std::ops::SubAssign;
-
 use crate::N;
 
-// Represents an element of Z_{q}[X]/(X^N + 1) with implicit q = 2^64.
+// Represents an element of Z_{2^q}[X]/(X^N + 1) with implicit q = 2^64.
 #[derive(Copy, Clone)]
 pub struct ResiduePoly {
+    // TODO: use Vec
     pub coefs: [u64; N],
 }
 
@@ -12,7 +11,7 @@ impl ResiduePoly {
     pub fn add(&self, rhs: ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
-            res.coefs[i] = self.coefs[i].wrapping_add(rhs.coefs[i]); // addition over Z_q
+            res.coefs[i] = self.coefs[i].wrapping_add(rhs.coefs[i]); // addition over Z_{2^q}
         }
         res
     }
@@ -36,12 +35,12 @@ impl ResiduePoly {
     pub fn sub(&self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
-            res.coefs[i] = self.coefs[i].wrapping_sub(rhs.coefs[i]); // subtraction over Z_q
+            res.coefs[i] = self.coefs[i].wrapping_sub(rhs.coefs[i]); // subtraction over Z_{2^q}
         }
         res
     }
 
-    // TODO: use NTT for quasilinear time instread of quadratic
+    // TODO: use NTT for better performances
     pub fn mul(self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
@@ -63,15 +62,3 @@ impl Default for ResiduePoly {
         ResiduePoly { coefs: [0u64; N] }
     }
 }
-
-// #[test]
-// fn test_mul() {
-//     let a = ResiduePoly {
-//         coefs: [0, 1, 0, 0],
-//     };
-//     let b = ResiduePoly {
-//         coefs: [0, 1, 1, 0],
-//     };
-//     let c = a.mul(&b);
-//     println!("{:?}", c.coefs);
-// }

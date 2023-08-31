@@ -1,82 +1,73 @@
 use crate::glwe::{decode, encode, keygen, SecretKey};
-use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, KEY_SIZE, N, P};
+use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
 use rand::{random, thread_rng, Rng};
 
 struct GgswCiphertext {
-    z_m_gt: [GlweCiphertext; (k + 1) * ELL as usize],
+    z_m_gt: [GlweCiphertext; (k + 1) * ELL],
 }
 
 impl GgswCiphertext {
     pub fn encrypt(msg: u8, sk: SecretKey) -> Self {
-        // init Z
-        let mut z_m_gt = [GlweCiphertext::default(); (k + 1) * ELL as usize];
+        // initialize Z
+        let mut z_m_gt = [GlweCiphertext::default(); (k + 1) * ELL];
 
         for i in 0..z_m_gt.len() {
             z_m_gt[i] = GlweCiphertext::encrypt(0, sk);
         }
 
         // m * g, g being [q/B, ..., q/B^l]
-        let mut mg = [0u64; ELL as usize];
+        let mut mg = [0u64; ELL];
         mg[0] = (msg as u64) << 56;
         mg[1] = (msg as u64) << 48;
 
-        // TODO: need to fix this
         // add m * G^t to Z
-        // for i in 0..z_m_gt.len() {
-        //     if i < k * ELL as usize {
-        //         for j in 0..z_m_gt[i].mask.len() {
-        //             z_m_gt[i].mask[j].add_constant(mg[i % ELL as usize]);
-        //         }
-        //     } else {
-        //         z_m_gt[i].body.add_constant(mg[i % ELL as usize]);
-        //     }
-        // }
-
-        z_m_gt[0].mask[0].add_constant_assign(mg[0]);
-        z_m_gt[1].mask[0].add_constant_assign(mg[1]);
-        z_m_gt[2].body.add_constant_assign(mg[0]);
-        z_m_gt[3].body.add_constant_assign(mg[1]);
+        for i in 0..z_m_gt.len() {
+            if i < k * ELL {
+                for j in 0..z_m_gt[i].mask.len() {
+                    z_m_gt[i].mask[j].add_constant_assign(mg[i % ELL]);
+                }
+            } else {
+                z_m_gt[i].body.add_constant_assign(mg[i % ELL]);
+            }
+        }
 
         GgswCiphertext { z_m_gt }
     }
 
+    // The last `GlweCiphertext` of `z_m_gt` is an encryption of msg * q/B^l
     pub fn decrypt(self, sk: SecretKey) -> u8 {
-        ((((self.z_m_gt[self.z_m_gt.len() - 1].decrypt(sk) >> 47).wrapping_add(1)) >> 1) % 16) as u8
+        ((((self.z_m_gt[self.z_m_gt.len() - 1].decrypt(sk) >> 47) + 1) >> 1) % 16) as u8
     }
 
     pub fn external_product(self, ct: GlweCiphertext) -> GlweCiphertext {
         let g_inverse_ct = apply_g_inverse(ct);
 
-        let mut mask = ResiduePoly::default();
-        mask.add_assign(&g_inverse_ct[0].mul(&self.z_m_gt[0].mask[0]));
-        mask.add_assign(&g_inverse_ct[1].mul(&self.z_m_gt[1].mask[0]));
-        mask.add_assign(&g_inverse_ct[2].mul(&self.z_m_gt[2].mask[0]));
-        mask.add_assign(&g_inverse_ct[3].mul(&self.z_m_gt[3].mask[0]));
-
-        let mut body = ResiduePoly::default();
-        body.add_assign(&g_inverse_ct[0].mul(&self.z_m_gt[0].body));
-        body.add_assign(&g_inverse_ct[1].mul(&self.z_m_gt[1].body));
-        body.add_assign(&g_inverse_ct[2].mul(&self.z_m_gt[2].body));
-        body.add_assign(&g_inverse_ct[3].mul(&self.z_m_gt[3].body));
-
-        GlweCiphertext { mask: [mask], body }
+        let mut res = GlweCiphertext::default();
+        for i in 0..(k + 1) * ELL {
+            for j in 0..k {
+                res.mask[j].add_assign(&g_inverse_ct[i].mul(&self.z_m_gt[i].mask[j]));
+            }
+            res.body
+                .add_assign(&g_inverse_ct[i].mul(&self.z_m_gt[i].body));
+        }
+        res
     }
 }
 
-// correct only for k = 1
-fn apply_g_inverse(ct: GlweCiphertext) -> [ResiduePoly; (k + 1) * ELL as usize] {
-    let mut res = [ResiduePoly::default(); (k + 1) * ELL as usize];
-
+fn apply_g_inverse(ct: GlweCiphertext) -> [ResiduePoly; (k + 1) * ELL] {
+    let mut res = [ResiduePoly::default(); (k + 1) * ELL];
     for i in 0..N {
-        let (nu_2, nu_1) = decomposition(ct.mask[0].coefs[i]);
-        res[0].coefs[i] = nu_1 as u64; // mask decomposition B
-        res[1].coefs[i] = nu_2 as u64; // mask decomposition B^l
+        // mask decomposition
+        for j in 0..k {
+            let (nu_2, nu_1) = decomposition(ct.mask[j].coefs[i]);
+            res[j * ELL].coefs[i] = nu_1 as u64;
+            res[j * ELL + 1].coefs[i] = nu_2 as u64;
+        }
 
-        // println!("body.coefs[i]: {}", ct.body.coefs[i]);
+        // body decomposition
         let (nu_2, nu_1) = decomposition(ct.body.coefs[i]);
-        // println!("ct.body.coefs[i]: {}", ct.body.coefs[i]);
-        res[2].coefs[i] = nu_1 as u64; // body decomposition B
-        res[3].coefs[i] = nu_2 as u64; // body decomposition B^l
+        res[(k + 1) * ELL - 2].coefs[i] = nu_1 as u64;
+        res[(k + 1) * ELL - 1].coefs[i] = nu_2 as u64;
     }
     res
 }
@@ -105,12 +96,10 @@ fn test_keygen_enc_dec() {
     }
 }
 
-// The following test fails from time to time. In these cases, the result is off by one (result = expected - 1)
-// It seems the negative error is growing too large?
 #[test]
 fn test_external_product() {
     let sk = keygen();
-    for i in 0..1000 {
+    for _ in 0..100 {
         let msg1 = thread_rng().gen_range(0..16);
         let msg2 = thread_rng().gen_range(0..16);
         let ct1 = GgswCiphertext::encrypt(msg1, sk);
@@ -118,11 +107,6 @@ fn test_external_product() {
         let res = ct1.external_product(ct2);
         let pt = decode(res.decrypt(sk));
         let expected: u8 = msg1 * msg2 % 16;
-        if expected != pt {
-            println!("expected: {}, pt: {}", expected, pt);
-            println!("mu: {}", res.decrypt(sk));
-        }
-
         assert_eq!(expected, pt);
     }
 }

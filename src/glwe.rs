@@ -8,8 +8,10 @@ pub struct GlweCiphertext {
     pub body: ResiduePoly,
 }
 
+// SecretKey is an array of `k` polynomials in {0, 1}[X]/X^N + 1 (i.e., of degree `N - 1` and with coefficients in {0, 1}).
 #[derive(Clone, Copy)]
 pub struct SecretKey {
+    // TODO: use Vec
     pub polys: [ResiduePoly; k],
 }
 
@@ -19,10 +21,8 @@ impl GlweCiphertext {
         let normal = Normal::new(0.0, sigma).unwrap();
 
         let e = normal.sample(&mut rand::thread_rng()).round() as i64;
-        // let e = 0;
         let mu_star = mu.wrapping_add_signed(e);
 
-        // mask
         let mut mask: [ResiduePoly; k] = Default::default();
         for i in 0..k {
             for j in 0..N {
@@ -30,9 +30,10 @@ impl GlweCiphertext {
             }
         }
 
-        // correct when k = 1
-
-        let mut body = mask[0].mul(&sk.polys[0]);
+        let mut body = ResiduePoly::default();
+        for i in 0..k {
+            body.add_assign(&mask[i].mul(&sk.polys[i]));
+        }
 
         body.add_constant_assign(mu_star as u64);
 
@@ -40,8 +41,10 @@ impl GlweCiphertext {
     }
 
     pub fn decrypt(self, sk: SecretKey) -> u64 {
-        // optimized computation of the dot product for when k = 1
-        let body = self.mask[0].mul(&sk.polys[0]);
+        let mut body = ResiduePoly::default();
+        for i in 0..k {
+            body.add_assign(&self.mask[i].mul(&sk.polys[i]));
+        }
 
         let mu_star = self.body.sub(&body);
         mu_star.coefs[0]
@@ -60,7 +63,7 @@ impl GlweCiphertext {
 impl Default for GlweCiphertext {
     fn default() -> Self {
         GlweCiphertext {
-            mask: [ResiduePoly::default()], // only works with k = 1
+            mask: [ResiduePoly::default(); k],
             body: ResiduePoly::default(),
         }
     }
@@ -70,7 +73,7 @@ pub fn keygen() -> SecretKey {
     let mut polys = [ResiduePoly::default(); k];
     for i in 0..k {
         for j in 0..N {
-            polys[i].coefs[j] = thread_rng().gen_range(0..2);
+            polys[i].coefs[j] = thread_rng().gen_range(0..=1);
         }
     }
     SecretKey { polys }
