@@ -1,9 +1,11 @@
 use crate::N;
+use serde::Serialize;
 
 // Represents an element of Z_{2^q}[X]/(X^N + 1) with implicit q = 2^64.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize)]
 pub struct ResiduePoly {
-    // TODO: use Vec
+    //TODO: use Vec
+    #[serde(serialize_with = "<[_]>::serialize")]
     pub coefs: [u64; N],
 }
 

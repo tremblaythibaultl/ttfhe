@@ -1,8 +1,9 @@
 use crate::{k, poly::ResiduePoly, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
+use serde::Serialize;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize)]
 pub struct GlweCiphertext {
     pub mask: [ResiduePoly; k],
     pub body: ResiduePoly,
@@ -50,6 +51,7 @@ impl GlweCiphertext {
         mu_star.coefs[0]
     }
 
+    #[cfg(test)]
     fn add(self, rhs: Self) -> Self {
         let mut res = GlweCiphertext::default();
         for i in 0..k {
