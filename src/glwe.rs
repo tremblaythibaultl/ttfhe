@@ -1,9 +1,9 @@
 use crate::{k, poly::ResiduePoly, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct GlweCiphertext {
     pub mask: [ResiduePoly; k],
     pub body: ResiduePoly,

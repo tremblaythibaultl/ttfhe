@@ -9,7 +9,7 @@ edition = "2021"
 rand = "0.8.5"
 rand_distr = "0.4.3"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-
+serde-big-array = "0.5.1"
 
 [lib]
 name = "ttfhe"

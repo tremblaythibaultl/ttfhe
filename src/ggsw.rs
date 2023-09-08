@@ -4,9 +4,9 @@ use crate::glwe::{decode, encode, keygen};
 use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
 #[cfg(test)]
 use rand::{thread_rng, Rng};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct GgswCiphertext {
     z_m_gt: [GlweCiphertext; (k + 1) * ELL],
 }

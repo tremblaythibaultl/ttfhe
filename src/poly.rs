@@ -1,11 +1,12 @@
 use crate::N;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
 // Represents an element of Z_{2^q}[X]/(X^N + 1) with implicit q = 2^64.
-#[derive(Copy, Clone, Serialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ResiduePoly {
     //TODO: use Vec
-    #[serde(serialize_with = "<[_]>::serialize")]
+    #[serde(with = "BigArray")]
     pub coefs: [u64; N],
 }
 
