@@ -1,6 +1,8 @@
+#[cfg(test)]
+use crate::glwe::keygen;
 use crate::glwe::SecretKey;
 #[cfg(test)]
-use crate::glwe::{decode, encode, keygen};
+use crate::lwe::{decode, encode};
 use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
 #[cfg(test)]
 use rand::{thread_rng, Rng};
@@ -123,12 +125,15 @@ fn test_cmux() {
         let msg1 = thread_rng().gen_range(0..16);
         let msg2 = thread_rng().gen_range(0..16);
         let b = thread_rng().gen_range(0..2);
+
         let ct1 = GlweCiphertext::encrypt(encode(msg1), sk);
         let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
         let ctb = GgswCiphertext::encrypt(b, sk);
-        let temp = ct2.sub(ct1);
-        let temp = ctb.external_product(temp);
-        let res = temp.add(ct1);
+
+        let mut res = ct2.sub(ct1);
+        res = ctb.external_product(res);
+        res = res.add(ct1);
+
         let pt = decode(res.decrypt(sk));
         assert_eq!(pt, (1 - b) * msg1 + b * msg2);
     }

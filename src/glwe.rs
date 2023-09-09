@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::lwe::{decode, encode};
 use crate::{k, poly::ResiduePoly, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
@@ -87,14 +89,6 @@ pub fn keygen() -> SecretKey {
         }
     }
     SecretKey { polys }
-}
-
-pub fn encode(msg: u8) -> u64 {
-    (msg as u64) << 60
-}
-
-pub fn decode(mu: u64) -> u8 {
-    ((((mu >> 59) + 1) >> 1) % 16) as u8
 }
 
 #[test]
