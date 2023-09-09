@@ -11,7 +11,7 @@ pub struct ResiduePoly {
 }
 
 impl ResiduePoly {
-    pub fn add(&self, rhs: ResiduePoly) -> Self {
+    pub fn add(&self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
             res.coefs[i] = self.coefs[i].wrapping_add(rhs.coefs[i]); // addition over Z_{2^q}

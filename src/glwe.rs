@@ -51,13 +51,21 @@ impl GlweCiphertext {
         mu_star.coefs[0]
     }
 
-    #[cfg(test)]
-    fn add(self, rhs: Self) -> Self {
+    pub fn add(self, rhs: Self) -> Self {
         let mut res = GlweCiphertext::default();
         for i in 0..k {
-            res.mask[i] = self.mask[i].add(rhs.mask[i]);
+            res.mask[i] = self.mask[i].add(&rhs.mask[i]);
         }
-        res.body = self.body.add(rhs.body);
+        res.body = self.body.add(&rhs.body);
+        res
+    }
+
+    pub fn sub(self, rhs: Self) -> Self {
+        let mut res = GlweCiphertext::default();
+        for i in 0..k {
+            res.mask[i] = self.mask[i].sub(&rhs.mask[i]);
+        }
+        res.body = self.body.sub(&rhs.body);
         res
     }
 }
@@ -111,5 +119,19 @@ fn test_add() {
         let res = ct1.add(ct2);
         let pt = decode(res.decrypt(sk));
         assert!(pt == (msg1 + msg2) % 16);
+    }
+}
+
+#[test]
+fn test_sub() {
+    let sk = keygen();
+    for _ in 0..100 {
+        let msg1 = thread_rng().gen_range(0..16);
+        let msg2 = thread_rng().gen_range(0..16);
+        let ct1 = GlweCiphertext::encrypt(encode(msg1), sk);
+        let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
+        let res = ct1.sub(ct2);
+        let pt = decode(res.decrypt(sk));
+        assert!(pt == (msg1.wrapping_sub(msg2)) % 16);
     }
 }
