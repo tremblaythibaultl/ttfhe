@@ -98,7 +98,7 @@ fn test_keygen_enc_dec() {
         let msg = thread_rng().gen_range(0..16);
         let ct = GlweCiphertext::encrypt(encode(msg), sk);
         let pt = decode(ct.decrypt(sk));
-        assert!(pt == msg);
+        assert_eq!(pt, msg);
     }
 }
 
@@ -112,7 +112,7 @@ fn test_add() {
         let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
         let res = ct1.add(ct2);
         let pt = decode(res.decrypt(sk));
-        assert!(pt == (msg1 + msg2) % 16);
+        assert_eq!(pt, (msg1 + msg2) % 16);
     }
 }
 
@@ -126,6 +126,6 @@ fn test_sub() {
         let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
         let res = ct1.sub(ct2);
         let pt = decode(res.decrypt(sk));
-        assert!(pt == (msg1.wrapping_sub(msg2)) % 16);
+        assert_eq!(pt, (msg1.wrapping_sub(msg2)) % 16);
     }
 }

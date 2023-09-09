@@ -99,7 +99,7 @@ fn test_keygen_enc_dec() {
         let msg = thread_rng().gen_range(0..16);
         let ct = GgswCiphertext::encrypt(msg, sk);
         let pt = ct.decrypt(sk);
-        assert!(msg == pt as u8);
+        assert_eq!(msg, pt as u8);
     }
 }
 
