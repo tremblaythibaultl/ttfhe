@@ -1,6 +1,7 @@
 #[cfg(test)]
 use crate::lwe::{decode, encode};
-use crate::{k, poly::ResiduePoly, N};
+use crate::lwe::{LweCiphertext, LweSecretKey};
+use crate::{k, poly::ResiduePoly, LWE_DIM, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
@@ -70,6 +71,26 @@ impl GlweCiphertext {
         res.body = self.body.sub(&rhs.body);
         res
     }
+
+    // TODO: generalize for k > 1
+    pub fn sample_extract(self) -> LweCiphertext {
+        let mut mask = [0u64; LWE_DIM];
+        mask[0] = self.mask[0].coefs[0];
+        for i in 1..LWE_DIM {
+            mask[i] = self.mask[0].coefs[LWE_DIM - i].wrapping_neg();
+        }
+
+        let body = self.body.coefs[0];
+
+        LweCiphertext { mask, body }
+    }
+}
+
+impl SecretKey {
+    // TODO: generalize for k=1
+    pub fn recode(self) -> LweSecretKey {
+        self.polys[0].coefs
+    }
 }
 
 impl Default for GlweCiphertext {
@@ -128,4 +149,17 @@ fn test_sub() {
         let pt = decode(res.decrypt(sk));
         assert_eq!(pt, (msg1.wrapping_sub(msg2)) % 16);
     }
+}
+
+#[test]
+fn test_sample_extract() {
+    let sk = keygen();
+    let msg = thread_rng().gen_range(0..16);
+    let ct = GlweCiphertext::encrypt(encode(msg), sk);
+
+    let sample_extracted: LweCiphertext = ct.sample_extract();
+    let recoded_sk: LweSecretKey = sk.recode();
+
+    let pt = decode(sample_extracted.decrypt(recoded_sk));
+    println!("msg: {}, pt: {}", msg, pt)
 }

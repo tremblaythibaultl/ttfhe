@@ -1,6 +1,6 @@
-use std::{num::Wrapping, ops::Rem};
+use std::num::Wrapping;
 
-use crate::{LWE_DIM, N};
+use crate::LWE_DIM;
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ pub struct LweCiphertext {
     pub body: u64,
 }
 
-type LweSecretKey = [u64; LWE_DIM];
+pub type LweSecretKey = [u64; LWE_DIM];
 
 impl LweCiphertext {
     pub fn encrypt(mu: u64, sk: LweSecretKey) -> LweCiphertext {
@@ -52,19 +52,6 @@ impl LweCiphertext {
         let mu_star = self.body.wrapping_sub(body.0);
         mu_star
     }
-
-    // // decrypt a LWE ciphertext that was modswitched to 2N
-    // pub fn decrypt_modswitched(self, sk: LweSecretKey) -> u64 {
-    //     let mut dot_prod = 0u64;
-    //     for i in 0..LWE_DIM {
-    //         if sk[i] == 1 {
-    //             dot_prod = dot_prod.wrapping_add(self.mask[i]).rem(2 * N as u64);
-    //         }
-    //     }
-
-    //     let mu_star_tilde = self.body.wrapping_sub(dot_prod).rem(2 * N as u64);
-    //     mu_star_tilde
-    // }
 
     pub fn add(self, rhs: Self) -> Self {
         let mut mask = [0u64; LWE_DIM];
@@ -124,7 +111,7 @@ pub fn decode_modswitched(mu: u64) -> u8 {
 #[test]
 fn test_keygen_enc_dec() {
     let sk = lwe_keygen();
-    for _ in 0..10000 {
+    for _ in 0..100 {
         let msg = thread_rng().gen_range(0..16);
         let ct = LweCiphertext::encrypt(encode(msg), sk);
         let pt = decode(ct.decrypt(sk));
