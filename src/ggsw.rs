@@ -1,14 +1,16 @@
 #[cfg(test)]
 use crate::glwe::keygen;
-use crate::glwe::SecretKey;
 #[cfg(test)]
 use crate::lwe::{decode, encode};
 use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
+use crate::{glwe::SecretKey, lwe::LweSecretKey};
 #[cfg(test)]
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+pub type BootstrappingKey = Vec<GgswCiphertext>;
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct GgswCiphertext {
     z_m_gt: [GlweCiphertext; (k + 1) * ELL],
 }
@@ -61,6 +63,14 @@ impl GgswCiphertext {
     }
 }
 
+impl Default for GgswCiphertext {
+    fn default() -> Self {
+        GgswCiphertext {
+            z_m_gt: [GlweCiphertext::default(); (k + 1) * ELL],
+        }
+    }
+}
+
 fn apply_g_inverse(ct: GlweCiphertext) -> [ResiduePoly; (k + 1) * ELL] {
     let mut res = [ResiduePoly::default(); (k + 1) * ELL];
     for i in 0..N {
@@ -89,6 +99,35 @@ fn decomposition(val: u64) -> (i8, i8) {
         (rounded_val as i8, ((rounded_val >> 8) + 1) as i8)
     } else {
         (rounded_val as i8, (rounded_val >> 8) as i8)
+    }
+}
+
+pub fn cmux(ctb: GgswCiphertext, ct1: GlweCiphertext, ct2: GlweCiphertext) -> GlweCiphertext {
+    let mut res = ct2.sub(ct1);
+    res = ctb.external_product(res);
+    res = res.add(ct1);
+    res
+}
+
+// encrypt `s` under `sk`
+pub fn compute_bsk(s: LweSecretKey, sk: SecretKey) -> BootstrappingKey {
+    let mut bsk = vec![];
+    for i in 0..N {
+        bsk.push(GgswCiphertext::encrypt(s[i] as u8, sk));
+    }
+
+    bsk
+}
+
+#[test]
+fn test_bsk() {
+    let s = keygen().recode();
+    let s_prime = keygen();
+
+    let bsk = compute_bsk(s, s_prime);
+
+    for i in 0..N {
+        assert_eq!(s[i], bsk[i].decrypt(s_prime) as u64)
     }
 }
 
@@ -130,11 +169,29 @@ fn test_cmux() {
         let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
         let ctb = GgswCiphertext::encrypt(b, sk);
 
-        let mut res = ct2.sub(ct1);
-        res = ctb.external_product(res);
-        res = res.add(ct1);
+        let res = cmux(ctb, ct1, ct2);
 
         let pt = decode(res.decrypt(sk));
+        assert_eq!(pt, (1 - b) * msg1 + b * msg2);
+    }
+}
+
+#[test]
+fn test_cmux_trivial() {
+    for _ in 0..100 {
+        let sk = keygen();
+        let msg1 = thread_rng().gen_range(0..16);
+        let msg2 = thread_rng().gen_range(0..16);
+        let b = thread_rng().gen_range(0..2);
+
+        let ct1 = GlweCiphertext::trivial_encrypt(encode(msg1));
+        let ct2 = GlweCiphertext::trivial_encrypt(encode(msg2));
+        let ctb = GgswCiphertext::encrypt(b, sk);
+
+        let res = cmux(ctb, ct1, ct2);
+
+        let pt = decode(res.decrypt(sk));
+
         assert_eq!(pt, (1 - b) * msg1 + b * msg2);
     }
 }

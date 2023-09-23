@@ -1,6 +1,7 @@
-#[cfg(test)]
+use crate::ggsw::{cmux, compute_bsk, BootstrappingKey, GgswCiphertext};
 use crate::lwe::{decode, encode};
 use crate::lwe::{LweCiphertext, LweSecretKey};
+use crate::P;
 use crate::{k, poly::ResiduePoly, LWE_DIM, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
@@ -73,7 +74,7 @@ impl GlweCiphertext {
     }
 
     // TODO: generalize for k > 1
-    pub fn sample_extract(self) -> LweCiphertext {
+    pub fn sample_extract(&self) -> LweCiphertext {
         let mut mask = [0u64; LWE_DIM];
         mask[0] = self.mask[0].coefs[0];
         for i in 1..LWE_DIM {
@@ -84,11 +85,61 @@ impl GlweCiphertext {
 
         LweCiphertext { mask, body }
     }
+
+    pub fn trivial_encrypt(mu: u64) -> Self {
+        let mut res = Self::default();
+        res.body.coefs[0] = mu;
+        res
+    }
+
+    // `self` is assumed to be a trivial encryption
+    // `c` is a modswitched LWE ciphertext (modulus = 2N)
+    pub fn blind_rotate(self, c: LweCiphertext, bsk: &BootstrappingKey) -> Self {
+        let mut c_prime = self;
+
+        c_prime.rotate_trivial(((2 * N) as u64).wrapping_sub(c.body));
+
+        for i in 0..N {
+            c_prime = cmux(bsk[i], c_prime, c_prime.rotate(c.mask[i]));
+        }
+
+        c_prime
+    }
+
+    // `self` is assumed to be a trivial encryption
+    fn rotate_trivial(&mut self, exponent: u64) {
+        self.body = self.body.multiply_by_monomial(exponent as usize);
+    }
+
+    // "rotates" (multiplies by X^exponent) every component of `self`
+    pub fn rotate(&self, exponent: u64) -> Self {
+        let mut res = Self::default();
+        for i in 0..k {
+            res.mask[i] = self.mask[i].multiply_by_monomial(exponent as usize);
+        }
+
+        res.body = self.body.multiply_by_monomial(exponent as usize);
+
+        res
+    }
+
+    // TODO: make sure this is right - at the moment it doesn't wrap around the boundary.
+    pub fn trivial_encrypt_lut_poly() -> Self {
+        let mut lut_coefs = [0u64; N];
+
+        for i in 0..N {
+            lut_coefs[i] = encode(((P * i) / (2 * N)).try_into().unwrap());
+        }
+
+        let mut res = Self::default();
+        res.body = ResiduePoly { coefs: lut_coefs };
+        res
+    }
 }
 
 impl SecretKey {
     // TODO: generalize for k=1
-    pub fn recode(self) -> LweSecretKey {
+    pub fn recode(&self) -> LweSecretKey {
         self.polys[0].coefs
     }
 }
@@ -110,6 +161,29 @@ pub fn keygen() -> SecretKey {
         }
     }
     SecretKey { polys }
+}
+
+#[test]
+fn test_bootstrapping() {
+    let sk1 = keygen().recode();
+    let sk2 = keygen();
+    let bsk = compute_bsk(sk1, sk2); // list of encryptions of the bits of `sk1` under `sk2`.
+
+    let lut = GlweCiphertext::trivial_encrypt_lut_poly();
+
+    // for _ in 0..100 {
+    let msg = thread_rng().gen_range(0..8);
+
+    let c = LweCiphertext::encrypt(encode(msg), sk1).modswitch(); // "noisy" ciphertext that will be bootstrapped
+
+    let blind_rotated_lut = lut.blind_rotate(c, &bsk); // should return a GLWE encryption of X^{- \tilde{\mu}^*} * v(X) which should be equal to a polynomial with constant term \mu.
+
+    let res = blind_rotated_lut.sample_extract().decrypt(sk2.recode());
+
+    let pt = decode(res);
+
+    println!("msg: {}, res: {}, pt: {}", msg, res, pt);
+    // }
 }
 
 #[test]
@@ -161,5 +235,5 @@ fn test_sample_extract() {
     let recoded_sk: LweSecretKey = sk.recode();
 
     let pt = decode(sample_extracted.decrypt(recoded_sk));
-    println!("msg: {}, pt: {}", msg, pt)
+    assert_eq!(pt, msg)
 }

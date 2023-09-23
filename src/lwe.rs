@@ -53,6 +53,18 @@ impl LweCiphertext {
         mu_star
     }
 
+    pub fn decrypt_modswitched(self, sk: LweSecretKey) -> u64 {
+        let mut dot_prod = 0u64;
+        for i in 0..LWE_DIM {
+            if sk[i] == 1 {
+                dot_prod = (dot_prod + self.mask[i]) % (2 * LWE_DIM as u64);
+            }
+        }
+
+        let mu_star = self.body.wrapping_sub(dot_prod) % (2 * LWE_DIM as u64);
+        mu_star
+    }
+
     pub fn add(self, rhs: Self) -> Self {
         let mut mask = [0u64; LWE_DIM];
         for i in 0..LWE_DIM {
@@ -154,7 +166,7 @@ fn test_modswitch() {
         let msg = thread_rng().gen_range(0..16);
         let ct = LweCiphertext::encrypt(encode(msg), sk);
         let modswitched = ct.modswitch();
-        let pt = decode_modswitched(modswitched.decrypt(sk));
+        let pt = decode_modswitched(modswitched.decrypt_modswitched(sk));
         assert_eq!(pt, msg);
     }
 }
