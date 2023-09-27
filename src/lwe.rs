@@ -1,6 +1,9 @@
-use std::num::Wrapping;
+use std::{
+    num::Wrapping,
+    ops::{AddAssign, Not},
+};
 
-use crate::LWE_DIM;
+use crate::{ggsw::decomposition, ELL, LWE_DIM};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
@@ -14,10 +17,11 @@ pub struct LweCiphertext {
 }
 
 pub type LweSecretKey = [u64; LWE_DIM];
+pub type KeySwitchingKey = Vec<LweCiphertext>;
 
 impl LweCiphertext {
     pub fn encrypt(mu: u64, sk: LweSecretKey) -> LweCiphertext {
-        let sigma = f64::powf(2.0, 49.0);
+        let sigma = f64::powf(2.0, 29.0);
         let normal = Normal::new(0.0, sigma).unwrap();
 
         let e = normal.sample(&mut rand::thread_rng()).round() as i64;
@@ -87,16 +91,52 @@ impl LweCiphertext {
         LweCiphertext { mask, body }
     }
 
+    pub fn multiply_constant_assign(&mut self, constant: u64) -> Self {
+        for i in 0..LWE_DIM {
+            self.mask[i] = self.mask[i].wrapping_mul(constant);
+        }
+
+        self.body = self.body.wrapping_mul(constant);
+
+        *self
+    }
+
     // switch from modulus 2^64 to 2N, with 2N = 2^11 when N = 1024
     pub fn modswitch(&self) -> Self {
         let mut mask = [0u64; LWE_DIM];
         for i in 0..LWE_DIM {
             mask[i] = ((self.mask[i] >> 52) + 1) >> 1;
+            // println!("modswitch mask[i]: {}", mask[i]);
         }
 
         let body = ((self.body >> 52) + 1) >> 1;
+        println!("modswitch body: {}", body);
 
         LweCiphertext { mask, body }
+    }
+
+    // TODO: generalize for k > 1
+    pub fn keyswitch(&self, mut ksk: KeySwitchingKey) -> Self {
+        let mut keyswitched = Self::default();
+        keyswitched.body = self.body;
+
+        for i in 0..LWE_DIM {
+            let (decomp_mask_1, decomp_mask_2) = decomposition(self.mask[i]);
+            keyswitched = keyswitched
+                .sub(ksk[ELL * i].multiply_constant_assign(decomp_mask_1 as u64))
+                .sub(ksk[(ELL * i) + 1].multiply_constant_assign(decomp_mask_2 as u64));
+        }
+
+        keyswitched
+    }
+}
+
+impl Default for LweCiphertext {
+    fn default() -> Self {
+        LweCiphertext {
+            mask: [0u64; LWE_DIM],
+            body: 0u64,
+        }
     }
 }
 
@@ -106,6 +146,21 @@ pub fn lwe_keygen() -> LweSecretKey {
         sk[i] = thread_rng().gen_range(0..=1);
     }
     sk
+}
+
+// TODO: generalize for k > 1
+// Encrypts `sk1` under `sk2`
+pub fn compute_ksk(sk1: LweSecretKey, sk2: LweSecretKey) -> KeySwitchingKey {
+    let mut ksk = vec![];
+
+    for i in 0..LWE_DIM {
+        for j in 0..ELL {
+            let mu = sk1[i] << (40 + (8 * (j + 1))); // lg(B) = 8
+                                                     // println!("mu: {}", mu);
+            ksk.push(LweCiphertext::encrypt(mu, sk2));
+        }
+    }
+    ksk
 }
 
 pub fn encode(msg: u8) -> u64 {
@@ -118,6 +173,25 @@ pub fn decode(mu: u64) -> u8 {
 
 pub fn decode_modswitched(mu: u64) -> u8 {
     ((((mu >> 6) + 1) >> 1) % 16) as u8
+}
+
+#[test]
+fn test_keyswitch() {
+    let sk1 = lwe_keygen();
+    let sk2 = lwe_keygen();
+    let ksk = compute_ksk(sk1, sk2); //encrypt sk1 under sk2
+
+    for _ in 0..100 {
+        let msg = thread_rng().gen_range(0..16);
+
+        let ct1 = LweCiphertext::encrypt(encode(msg), sk1);
+
+        let res = ct1.keyswitch(ksk.clone()).decrypt(sk2);
+
+        let pt = decode(res);
+
+        assert_eq!(msg, pt);
+    }
 }
 
 #[test]
