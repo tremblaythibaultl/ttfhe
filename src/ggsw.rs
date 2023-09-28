@@ -42,16 +42,17 @@ impl GgswCiphertext {
         ((((self.z_m_gt[self.z_m_gt.len() - 1].decrypt(sk) >> 47) + 1) >> 1) % 16) as u8
     }
 
+    /// Performs a product (GGSW x GLWE) -> GLWE.
     pub fn external_product(self, ct: GlweCiphertext) -> GlweCiphertext {
         let g_inverse_ct = apply_g_inverse(ct);
 
         let mut res = GlweCiphertext::default();
         for i in 0..(k + 1) * ELL {
             for j in 0..k {
-                res.mask[j].add_assign(&g_inverse_ct[i].poly_mul(&self.z_m_gt[i].mask[j]));
+                res.mask[j].add_assign(&g_inverse_ct[i].mul(&self.z_m_gt[i].mask[j]));
             }
             res.body
-                .add_assign(&g_inverse_ct[i].poly_mul(&self.z_m_gt[i].body));
+                .add_assign(&g_inverse_ct[i].mul(&self.z_m_gt[i].body));
         }
         res
     }
@@ -65,6 +66,7 @@ impl Default for GgswCiphertext {
     }
 }
 
+/// Decomposition of a GLWE ciphertext.
 fn apply_g_inverse(ct: GlweCiphertext) -> [ResiduePoly; (k + 1) * ELL] {
     let mut res = [ResiduePoly::default(); (k + 1) * ELL];
     for i in 0..N {
@@ -83,8 +85,8 @@ fn apply_g_inverse(ct: GlweCiphertext) -> [ResiduePoly; (k + 1) * ELL] {
     res
 }
 
-// Approximate decomposition with B = 256 and ell = 2.
-// Takes a polynomial coefficient in Z_2^64 and decomposes its 16 MSBs in two signed 8-bit integers.
+/// Approximate decomposition with B = 256 and ell = 2.
+/// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in two signed 8-bit integers.
 pub fn decomposition(val: u64) -> (i8, i8) {
     let mut rounded_val = val >> 47;
     rounded_val += rounded_val & 1;

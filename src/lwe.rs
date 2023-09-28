@@ -93,7 +93,7 @@ impl LweCiphertext {
         *self
     }
 
-    // switch from modulus 2^64 to 2N, with 2N = 2^11 when N = 1024
+    /// Switch from modulus 2^64 to 2N, with 2N = 2^11.
     pub fn modswitch(&self) -> Self {
         let mut mask = [0u64; LWE_DIM];
         for i in 0..LWE_DIM {
@@ -105,6 +105,7 @@ impl LweCiphertext {
         LweCiphertext { mask, body }
     }
 
+    /// Switch to the key encrypted by `ksk`.
     // TODO: generalize for k > 1
     pub fn keyswitch(&self, mut ksk: KeySwitchingKey) -> Self {
         let mut keyswitched = LweCiphertext {
@@ -141,8 +142,8 @@ pub fn lwe_keygen() -> LweSecretKey {
     sk
 }
 
+/// Encrypts `sk1` under `sk2`.
 // TODO: generalize for k > 1
-// Encrypts `sk1` under `sk2`
 pub fn compute_ksk(sk1: &LweSecretKey, sk2: &LweSecretKey) -> KeySwitchingKey {
     let mut ksk = vec![];
 

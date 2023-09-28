@@ -13,7 +13,7 @@ pub struct GlweCiphertext {
     pub body: ResiduePoly,
 }
 
-// SecretKey is an array of `k` polynomials in {0, 1}[X]/X^N + 1 (i.e., of degree `N - 1` and with coefficients in {0, 1}).
+/// Set of `k` polynomials in {0, 1}\[X\]/(X^N + 1).
 #[derive(Clone, Copy)]
 pub struct SecretKey {
     // TODO: use Vec
@@ -37,7 +37,7 @@ impl GlweCiphertext {
 
         let mut body = ResiduePoly::default();
         for i in 0..k {
-            body.add_assign(&mask[i].poly_mul(&sk.polys[i]));
+            body.add_assign(&mask[i].mul(&sk.polys[i]));
         }
 
         body.add_constant_assign(mu_star as u64);
@@ -48,7 +48,7 @@ impl GlweCiphertext {
     pub fn decrypt(self, sk: SecretKey) -> u64 {
         let mut body = ResiduePoly::default();
         for i in 0..k {
-            body.add_assign(&self.mask[i].poly_mul(&sk.polys[i]));
+            body.add_assign(&self.mask[i].mul(&sk.polys[i]));
         }
 
         let mu_star = self.body.sub(&body);
@@ -73,6 +73,7 @@ impl GlweCiphertext {
         res
     }
 
+    /// Converts a GLWE ciphertext into a LWE ciphertext.
     // TODO: generalize for k > 1
     pub fn sample_extract(&self) -> LweCiphertext {
         let mut mask = [0u64; LWE_DIM];
@@ -86,12 +87,14 @@ impl GlweCiphertext {
         LweCiphertext { mask, body }
     }
 
+    /// Trivially encrypts `mu`.
     pub fn trivial_encrypt(mu: u64) -> Self {
         let mut res = Self::default();
         res.body.coefs[0] = mu;
         res
     }
 
+    /// Performs the blind rotation of `self`.
     // `self` is assumed to be a trivial encryption
     // `c` is a modswitched LWE ciphertext (modulus = 2N)
     pub fn blind_rotate(self, c: LweCiphertext, bsk: &BootstrappingKey) -> Self {
@@ -105,12 +108,13 @@ impl GlweCiphertext {
         c_prime
     }
 
-    // `self` is assumed to be a trivial encryption
+    /// Multiplies by the monomial `X^exponent` the body of `self`.
+    /// `self` is assumed to be a trivial encryption.
     fn rotate_trivial(&mut self, exponent: u64) {
         self.body = self.body.multiply_by_monomial(exponent as usize);
     }
 
-    // "rotates" (multiplies by X^exponent) every component of `self`
+    /// Multiplies by the monomial `X^exponent` every component of `self`.
     pub fn rotate(&self, exponent: u64) -> Self {
         let mut res = Self::default();
         for i in 0..k {
@@ -122,6 +126,7 @@ impl GlweCiphertext {
         res
     }
 
+    /// Trivially encrypts the LUT polynomial.
     pub fn trivial_encrypt_lut_poly() -> Self {
         let mut lut_coefs = [0u64; N];
 
@@ -137,6 +142,7 @@ impl GlweCiphertext {
 }
 
 impl SecretKey {
+    /// Converts a GLWE secret key into a LWE secret key.
     // TODO: generalize for k > 1
     pub fn recode(&self) -> LweSecretKey {
         self.polys[0].coefs.to_vec()

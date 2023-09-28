@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use std::fmt::Debug;
 
-// Represents an element of Z_{2^q}[X]/(X^N + 1) with implicit q = 2^64.
+/// Represents an element of Z_{q}\[X\]/(X^N + 1) with implicit q = 2^64.
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct ResiduePoly {
     //TODO: use Vec
@@ -23,7 +23,7 @@ impl ResiduePoly {
     pub fn add(&self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
-            res.coefs[i] = self.coefs[i].wrapping_add(rhs.coefs[i]); // addition over Z_{2^q}
+            res.coefs[i] = self.coefs[i].wrapping_add(rhs.coefs[i]);
         }
         res
     }
@@ -47,13 +47,13 @@ impl ResiduePoly {
     pub fn sub(&self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
-            res.coefs[i] = self.coefs[i].wrapping_sub(rhs.coefs[i]); // subtraction over Z_{2^q}
+            res.coefs[i] = self.coefs[i].wrapping_sub(rhs.coefs[i]);
         }
         res
     }
 
     // TODO: use NTT for better performances
-    pub fn poly_mul(self, rhs: &ResiduePoly) -> Self {
+    pub fn mul(self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
             let mut coef = 0u64;
@@ -131,7 +131,7 @@ mod tests {
             }
             let polynomial = ResiduePoly { coefs: poly_coefs };
 
-            let res_mul = polynomial.poly_mul(&monomial);
+            let res_mul = polynomial.mul(&monomial);
             let res_monomial_mul = polynomial.multiply_by_monomial(monomial_non_null_term);
 
             assert_eq!(res_mul.coefs, res_monomial_mul.coefs);
