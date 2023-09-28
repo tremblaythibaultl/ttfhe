@@ -1,10 +1,7 @@
-use std::fmt::Debug;
-
 use crate::N;
-#[cfg(test)]
-use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use std::fmt::Debug;
 
 // Represents an element of Z_{2^q}[X]/(X^N + 1) with implicit q = 2^64.
 #[derive(Copy, Clone, Serialize, Deserialize)]
@@ -38,7 +35,7 @@ impl ResiduePoly {
     }
 
     pub fn add_constant(&self, constant: u64) -> Self {
-        let mut res = self.clone();
+        let mut res: ResiduePoly = *self;
         res.coefs[0] = res.coefs[0].wrapping_add(constant);
         res
     }
@@ -56,7 +53,7 @@ impl ResiduePoly {
     }
 
     // TODO: use NTT for better performances
-    pub fn mul(self, rhs: &ResiduePoly) -> Self {
+    pub fn poly_mul(self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
             let mut coef = 0u64;
@@ -86,12 +83,10 @@ impl ResiduePoly {
                 } else {
                     self.coefs[i + N - exponent].wrapping_neg()
                 }
+            } else if reverse {
+                self.coefs[i - exponent].wrapping_neg()
             } else {
-                if reverse {
-                    self.coefs[i - exponent].wrapping_neg()
-                } else {
-                    self.coefs[i - exponent]
-                }
+                self.coefs[i - exponent]
             }
         }
 
@@ -136,7 +131,7 @@ mod tests {
             }
             let polynomial = ResiduePoly { coefs: poly_coefs };
 
-            let res_mul = polynomial.mul(&monomial);
+            let res_mul = polynomial.poly_mul(&monomial);
             let res_monomial_mul = polynomial.multiply_by_monomial(monomial_non_null_term);
 
             assert_eq!(res_mul.coefs, res_monomial_mul.coefs);

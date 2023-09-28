@@ -37,7 +37,7 @@ impl GlweCiphertext {
 
         let mut body = ResiduePoly::default();
         for i in 0..k {
-            body.add_assign(&mask[i].mul(&sk.polys[i]));
+            body.add_assign(&mask[i].poly_mul(&sk.polys[i]));
         }
 
         body.add_constant_assign(mu_star as u64);
@@ -48,7 +48,7 @@ impl GlweCiphertext {
     pub fn decrypt(self, sk: SecretKey) -> u64 {
         let mut body = ResiduePoly::default();
         for i in 0..k {
-            body.add_assign(&self.mask[i].mul(&sk.polys[i]));
+            body.add_assign(&self.mask[i].poly_mul(&sk.polys[i]));
         }
 
         let mu_star = self.body.sub(&body);
@@ -129,16 +129,17 @@ impl GlweCiphertext {
             lut_coefs[(i.wrapping_sub(64)) % N] = encode(((P * i) / (2 * N)).try_into().unwrap());
         }
 
-        let mut res = Self::default();
-        res.body = ResiduePoly { coefs: lut_coefs };
-        res
+        Self {
+            body: ResiduePoly { coefs: lut_coefs },
+            ..Default::default()
+        }
     }
 }
 
 impl SecretKey {
     // TODO: generalize for k > 1
     pub fn recode(&self) -> LweSecretKey {
-        self.polys[0].coefs
+        self.polys[0].coefs.to_vec()
     }
 }
 
@@ -174,19 +175,19 @@ mod tests {
     fn test_bootstrapping() {
         let sk1 = keygen().recode();
         let sk2 = keygen();
-        let bsk = compute_bsk(sk1, sk2); // list of encryptions under `sk2` of the bits of `sk1`.
+        let bsk = compute_bsk(&sk1, sk2); // list of encryptions under `sk2` of the bits of `sk1`.
 
         let lut = GlweCiphertext::trivial_encrypt_lut_poly();
 
         for _ in 0..16 {
             let msg = thread_rng().gen_range(0..8);
 
-            let c = LweCiphertext::encrypt(encode(msg), sk1).modswitch(); // "noisy" ciphertext that will be bootstrapped
-            c.decrypt_modswitched(sk1);
+            let c = LweCiphertext::encrypt(encode(msg), &sk1).modswitch(); // "noisy" ciphertext that will be bootstrapped
+            c.decrypt_modswitched(&sk1);
 
             let blind_rotated_lut = lut.blind_rotate(c, &bsk); // should return a GLWE encryption of X^{- \tilde{\mu}^*} * v(X) which should be equal to a polynomial with constant term \mu.
 
-            let res = blind_rotated_lut.sample_extract().decrypt(sk2.recode());
+            let res = blind_rotated_lut.sample_extract().decrypt(&sk2.recode());
 
             let pt = decode_bootstrapped(res);
 
@@ -242,7 +243,7 @@ mod tests {
         let sample_extracted: LweCiphertext = ct.sample_extract();
         let recoded_sk: LweSecretKey = sk.recode();
 
-        let pt = decode(sample_extracted.decrypt(recoded_sk));
+        let pt = decode(sample_extracted.decrypt(&recoded_sk));
         assert_eq!(pt, msg)
     }
 }

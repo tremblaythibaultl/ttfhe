@@ -14,8 +14,8 @@ impl GgswCiphertext {
         // initialize Z
         let mut z_m_gt = [GlweCiphertext::default(); (k + 1) * ELL];
 
-        for i in 0..z_m_gt.len() {
-            z_m_gt[i] = GlweCiphertext::encrypt(0, sk);
+        for ct in &mut z_m_gt {
+            *ct = GlweCiphertext::encrypt(0, sk);
         }
 
         // m * g, g being [q/B, ..., q/B^l]
@@ -48,10 +48,10 @@ impl GgswCiphertext {
         let mut res = GlweCiphertext::default();
         for i in 0..(k + 1) * ELL {
             for j in 0..k {
-                res.mask[j].add_assign(&g_inverse_ct[i].mul(&self.z_m_gt[i].mask[j]));
+                res.mask[j].add_assign(&g_inverse_ct[i].poly_mul(&self.z_m_gt[i].mask[j]));
             }
             res.body
-                .add_assign(&g_inverse_ct[i].mul(&self.z_m_gt[i].body));
+                .add_assign(&g_inverse_ct[i].poly_mul(&self.z_m_gt[i].body));
         }
         res
     }
@@ -88,7 +88,7 @@ fn apply_g_inverse(ct: GlweCiphertext) -> [ResiduePoly; (k + 1) * ELL] {
 pub fn decomposition(val: u64) -> (i8, i8) {
     let mut rounded_val = val >> 47;
     rounded_val += rounded_val & 1;
-    rounded_val = rounded_val >> 1;
+    rounded_val >>= 1;
     if rounded_val & 128 == 128 {
         (rounded_val as i8, ((rounded_val >> 8) + 1) as i8)
     } else {
@@ -105,7 +105,7 @@ pub fn cmux(ctb: GgswCiphertext, ct1: GlweCiphertext, ct2: GlweCiphertext) -> Gl
 }
 
 /// Encrypts the bits of `s` under `sk`
-pub fn compute_bsk(s: LweSecretKey, sk: SecretKey) -> BootstrappingKey {
+pub fn compute_bsk(s: &LweSecretKey, sk: SecretKey) -> BootstrappingKey {
     let mut bsk = vec![];
     for i in 0..N {
         bsk.push(GgswCiphertext::encrypt(s[i] as u8, sk));
