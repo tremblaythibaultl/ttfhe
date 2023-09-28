@@ -5,35 +5,28 @@ use crate::P;
 use crate::{k, poly::ResiduePoly, LWE_DIM, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct GlweCiphertext {
-    pub mask: [ResiduePoly; k],
+    pub mask: Vec<ResiduePoly>,
     pub body: ResiduePoly,
 }
 
 /// Set of `k` polynomials in {0, 1}\[X\]/(X^N + 1).
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SecretKey {
-    // TODO: use Vec
-    pub polys: [ResiduePoly; k],
+    pub polys: Vec<ResiduePoly>,
 }
 
 impl GlweCiphertext {
-    pub fn encrypt(mu: u64, sk: SecretKey) -> GlweCiphertext {
+    pub fn encrypt(mu: u64, sk: &SecretKey) -> GlweCiphertext {
         let sigma = f64::powf(2.0, 39.0);
         let normal = Normal::new(0.0, sigma).unwrap();
 
         let e = normal.sample(&mut rand::thread_rng()).round() as i64;
         let mu_star = mu.wrapping_add_signed(e);
 
-        let mut mask: [ResiduePoly; k] = Default::default();
-        for i in 0..k {
-            for j in 0..N {
-                mask[i].coefs[j] = rand::random::<u64>();
-            }
-        }
+        let mask: Vec<ResiduePoly> = (0..k).map(|_| ResiduePoly::get_random()).collect();
 
         let mut body = ResiduePoly::default();
         for i in 0..k {
@@ -45,7 +38,7 @@ impl GlweCiphertext {
         GlweCiphertext { mask, body }
     }
 
-    pub fn decrypt(self, sk: SecretKey) -> u64 {
+    pub fn decrypt(&self, sk: &SecretKey) -> u64 {
         let mut body = ResiduePoly::default();
         for i in 0..k {
             body.add_assign(&self.mask[i].mul(&sk.polys[i]));
@@ -55,7 +48,7 @@ impl GlweCiphertext {
         mu_star.coefs[0]
     }
 
-    pub fn add(self, rhs: Self) -> Self {
+    pub fn add(&self, rhs: &Self) -> Self {
         let mut res = GlweCiphertext::default();
         for i in 0..k {
             res.mask[i] = self.mask[i].add(&rhs.mask[i]);
@@ -64,7 +57,7 @@ impl GlweCiphertext {
         res
     }
 
-    pub fn sub(self, rhs: Self) -> Self {
+    pub fn sub(&self, rhs: &Self) -> Self {
         let mut res = GlweCiphertext::default();
         for i in 0..k {
             res.mask[i] = self.mask[i].sub(&rhs.mask[i]);
@@ -97,12 +90,12 @@ impl GlweCiphertext {
     /// Performs the blind rotation of `self`.
     // `self` is assumed to be a trivial encryption
     // `c` is a modswitched LWE ciphertext (modulus = 2N)
-    pub fn blind_rotate(self, c: LweCiphertext, bsk: &BootstrappingKey) -> Self {
-        let mut c_prime = self;
+    pub fn blind_rotate(&self, c: LweCiphertext, bsk: &BootstrappingKey) -> Self {
+        let mut c_prime = self.clone();
 
         c_prime.rotate_trivial((2 * N as u64) - c.body);
         for i in 0..N {
-            c_prime = cmux(bsk[i], c_prime, c_prime.rotate(c.mask[i]));
+            c_prime = cmux(&bsk[i], &c_prime, &c_prime.rotate(c.mask[i]));
         }
 
         c_prime
@@ -128,6 +121,7 @@ impl GlweCiphertext {
 
     /// Trivially encrypts the LUT polynomial.
     pub fn trivial_encrypt_lut_poly() -> Self {
+        // TODO: use iterator
         let mut lut_coefs = [0u64; N];
 
         for i in 0..N {
@@ -135,7 +129,9 @@ impl GlweCiphertext {
         }
 
         Self {
-            body: ResiduePoly { coefs: lut_coefs },
+            body: ResiduePoly {
+                coefs: lut_coefs.to_vec(),
+            },
             ..Default::default()
         }
     }
@@ -152,20 +148,22 @@ impl SecretKey {
 impl Default for GlweCiphertext {
     fn default() -> Self {
         GlweCiphertext {
-            mask: [ResiduePoly::default(); k],
+            mask: [ResiduePoly::default(); k].to_vec(),
             body: ResiduePoly::default(),
         }
     }
 }
 
 pub fn keygen() -> SecretKey {
-    let mut polys = [ResiduePoly::default(); k];
+    let mut polys: [ResiduePoly; k] = Default::default();
     for i in 0..k {
         for j in 0..N {
             polys[i].coefs[j] = thread_rng().gen_range(0..=1);
         }
     }
-    SecretKey { polys }
+    SecretKey {
+        polys: polys.to_vec(),
+    }
 }
 
 #[cfg(test)]
@@ -181,7 +179,7 @@ mod tests {
     fn test_bootstrapping() {
         let sk1 = keygen().recode();
         let sk2 = keygen();
-        let bsk = compute_bsk(&sk1, sk2); // list of encryptions under `sk2` of the bits of `sk1`.
+        let bsk = compute_bsk(&sk1, &sk2); // list of encryptions under `sk2` of the bits of `sk1`.
 
         let lut = GlweCiphertext::trivial_encrypt_lut_poly();
 
@@ -189,12 +187,10 @@ mod tests {
             let msg = thread_rng().gen_range(0..8);
 
             let c = LweCiphertext::encrypt(encode(msg), &sk1).modswitch(); // "noisy" ciphertext that will be bootstrapped
-            c.decrypt_modswitched(&sk1);
 
             let blind_rotated_lut = lut.blind_rotate(c, &bsk); // should return a GLWE encryption of X^{- \tilde{\mu}^*} * v(X) which should be equal to a polynomial with constant term \mu.
 
             let res = blind_rotated_lut.sample_extract().decrypt(&sk2.recode());
-
             let pt = decode_bootstrapped(res);
 
             assert_eq!(msg, pt)
@@ -206,8 +202,8 @@ mod tests {
         let sk = keygen();
         for _ in 0..100 {
             let msg = thread_rng().gen_range(0..16);
-            let ct = GlweCiphertext::encrypt(encode(msg), sk);
-            let pt = decode(ct.decrypt(sk));
+            let ct = GlweCiphertext::encrypt(encode(msg), &sk);
+            let pt = decode(ct.decrypt(&sk));
             assert_eq!(pt, msg);
         }
     }
@@ -218,10 +214,10 @@ mod tests {
         for _ in 0..100 {
             let msg1 = thread_rng().gen_range(0..16);
             let msg2 = thread_rng().gen_range(0..16);
-            let ct1 = GlweCiphertext::encrypt(encode(msg1), sk);
-            let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
-            let res = ct1.add(ct2);
-            let pt = decode(res.decrypt(sk));
+            let ct1 = GlweCiphertext::encrypt(encode(msg1), &sk);
+            let ct2 = GlweCiphertext::encrypt(encode(msg2), &sk);
+            let res = ct1.add(&ct2);
+            let pt = decode(res.decrypt(&sk));
             assert_eq!(pt, (msg1 + msg2) % 16);
         }
     }
@@ -232,10 +228,10 @@ mod tests {
         for _ in 0..100 {
             let msg1 = thread_rng().gen_range(0..16);
             let msg2 = thread_rng().gen_range(0..16);
-            let ct1 = GlweCiphertext::encrypt(encode(msg1), sk);
-            let ct2 = GlweCiphertext::encrypt(encode(msg2), sk);
-            let res = ct1.sub(ct2);
-            let pt = decode(res.decrypt(sk));
+            let ct1 = GlweCiphertext::encrypt(encode(msg1), &sk);
+            let ct2 = GlweCiphertext::encrypt(encode(msg2), &sk);
+            let res = ct1.sub(&ct2);
+            let pt = decode(res.decrypt(&sk));
             assert_eq!(pt, (msg1.wrapping_sub(msg2)) % 16);
         }
     }
@@ -244,7 +240,7 @@ mod tests {
     fn test_sample_extract() {
         let sk = keygen();
         let msg = thread_rng().gen_range(0..16);
-        let ct = GlweCiphertext::encrypt(encode(msg), sk);
+        let ct = GlweCiphertext::encrypt(encode(msg), &sk);
 
         let sample_extracted: LweCiphertext = ct.sample_extract();
         let recoded_sk: LweSecretKey = sk.recode();

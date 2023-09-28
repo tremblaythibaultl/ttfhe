@@ -1,14 +1,10 @@
 use crate::N;
-use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 use std::fmt::Debug;
 
 /// Represents an element of Z_{q}\[X\]/(X^N + 1) with implicit q = 2^64.
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct ResiduePoly {
-    //TODO: use Vec
-    #[serde(with = "BigArray")]
-    pub coefs: [u64; N],
+    pub coefs: Vec<u64>,
 }
 
 impl Debug for ResiduePoly {
@@ -20,6 +16,12 @@ impl Debug for ResiduePoly {
 }
 
 impl ResiduePoly {
+    pub fn new() -> Self {
+        ResiduePoly {
+            coefs: Vec::<u64>::with_capacity(N),
+        }
+    }
+
     pub fn add(&self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
@@ -35,7 +37,7 @@ impl ResiduePoly {
     }
 
     pub fn add_constant(&self, constant: u64) -> Self {
-        let mut res: ResiduePoly = *self;
+        let mut res: ResiduePoly = self.clone();
         res.coefs[0] = res.coefs[0].wrapping_add(constant);
         res
     }
@@ -53,7 +55,7 @@ impl ResiduePoly {
     }
 
     // TODO: use NTT for better performances
-    pub fn mul(self, rhs: &ResiduePoly) -> Self {
+    pub fn mul(&self, rhs: &ResiduePoly) -> Self {
         let mut res = Self::default();
         for i in 0..N {
             let mut coef = 0u64;
@@ -68,26 +70,36 @@ impl ResiduePoly {
         res
     }
 
+    /// Generates a residue polynomial with random coefficients
+    pub fn get_random() -> Self {
+        let coefs = (0..N).map(|_| rand::random::<u64>()).collect();
+
+        Self { coefs }
+    }
+
     /// Multiplies the residue polynomial by X^{exponent} = X^{2N + exponent}.
     /// `exponent` is assumed to be reduced modulo 2N.
-    pub fn multiply_by_monomial(self, exponent: usize) -> Self {
-        let mut rotated_coefs = [0u64; N];
+    pub fn multiply_by_monomial(&self, exponent: usize) -> Self {
+        // let mut rotated_coefs = [0u64; N].to_vec()
+        let mut rotated_coefs = Vec::<u64>::with_capacity(N);
 
         let reverse = exponent >= N;
         let exponent = exponent % N;
 
         for i in 0..N {
-            rotated_coefs[i] = if i < exponent {
-                if reverse {
-                    self.coefs[i + N - exponent]
+            rotated_coefs.push({
+                if i < exponent {
+                    if reverse {
+                        self.coefs[i + N - exponent]
+                    } else {
+                        self.coefs[i + N - exponent].wrapping_neg()
+                    }
+                } else if reverse {
+                    self.coefs[i - exponent].wrapping_neg()
                 } else {
-                    self.coefs[i + N - exponent].wrapping_neg()
+                    self.coefs[i - exponent]
                 }
-            } else if reverse {
-                self.coefs[i - exponent].wrapping_neg()
-            } else {
-                self.coefs[i - exponent]
-            }
+            })
         }
 
         ResiduePoly {
@@ -98,7 +110,9 @@ impl ResiduePoly {
 
 impl Default for ResiduePoly {
     fn default() -> Self {
-        ResiduePoly { coefs: [0u64; N] }
+        ResiduePoly {
+            coefs: [0u64; N].to_vec(),
+        }
     }
 }
 
@@ -112,7 +126,7 @@ mod tests {
     /// Tests that the monomial multiplication is coherent with monomial multiplication.
     fn test_monomial_mult() {
         for _ in 0..1000 {
-            let mut monomial_coefs = [0u64; N];
+            let mut monomial_coefs = [0u64; N].to_vec();
             let monomial_non_null_term = thread_rng().gen_range(0..2 * N);
 
             if monomial_non_null_term < 1024 {
@@ -125,11 +139,7 @@ mod tests {
                 coefs: monomial_coefs,
             };
 
-            let mut poly_coefs = [0u64; N];
-            for i in 0..N {
-                poly_coefs[i] = rand::random::<u64>();
-            }
-            let polynomial = ResiduePoly { coefs: poly_coefs };
+            let polynomial = ResiduePoly::get_random();
 
             let res_mul = polynomial.mul(&monomial);
             let res_monomial_mul = polynomial.multiply_by_monomial(monomial_non_null_term);
