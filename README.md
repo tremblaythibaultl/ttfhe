@@ -1,5 +1,5 @@
 # About
 
-This library hosts a toy implementation of TFHE as described in the [[Joye22]](https://tches.iacr.org/index.php/TCHES/article/view/9836) paper. The variable names aim to follow those in the paper.
+This repository hosts a toy implementation of TFHE inspired from the [[Joye22]](https://tches.iacr.org/index.php/TCHES/article/view/9836) paper.
 
-The library is not safe.
+This was developed for learning purposes and is not safe to use.

@@ -71,11 +71,12 @@ impl ResiduePoly {
         res
     }
 
-    // Multiplies the residue polynomial by X^{exponent} = X^{2N + exponent}
+    /// Multiplies the residue polynomial by X^{exponent} = X^{2N + exponent}.
+    /// `exponent` is assumed to be reduced modulo 2N.
     pub fn multiply_by_monomial(self, exponent: usize) -> Self {
         let mut rotated_coefs = [0u64; N];
 
-        let reverse = exponent > N;
+        let reverse = exponent >= N;
         let exponent = exponent % N;
 
         for i in 0..N {
@@ -106,32 +107,39 @@ impl Default for ResiduePoly {
     }
 }
 
-#[test]
-// tests that the monomial multiplication is coherent with monomial multiplication.
-fn test_monomial_mult() {
-    for _ in 0..100 {
-        let mut monomial_coefs = [0u64; N];
-        let monomial_non_null_term = thread_rng().gen_range(0..2 * N);
+#[cfg(test)]
+mod tests {
+    use rand::{thread_rng, Rng};
 
-        if monomial_non_null_term < 1024 {
-            monomial_coefs[monomial_non_null_term] = 1;
-        } else {
-            monomial_coefs[monomial_non_null_term % 1024] = 1u64.wrapping_neg();
+    use crate::{poly::ResiduePoly, N};
+
+    #[test]
+    /// Tests that the monomial multiplication is coherent with monomial multiplication.
+    fn test_monomial_mult() {
+        for _ in 0..1000 {
+            let mut monomial_coefs = [0u64; N];
+            let monomial_non_null_term = thread_rng().gen_range(0..2 * N);
+
+            if monomial_non_null_term < 1024 {
+                monomial_coefs[monomial_non_null_term] = 1;
+            } else {
+                monomial_coefs[monomial_non_null_term % 1024] = 1u64.wrapping_neg();
+            }
+
+            let monomial = ResiduePoly {
+                coefs: monomial_coefs,
+            };
+
+            let mut poly_coefs = [0u64; N];
+            for i in 0..N {
+                poly_coefs[i] = rand::random::<u64>();
+            }
+            let polynomial = ResiduePoly { coefs: poly_coefs };
+
+            let res_mul = polynomial.mul(&monomial);
+            let res_monomial_mul = polynomial.multiply_by_monomial(monomial_non_null_term);
+
+            assert_eq!(res_mul.coefs, res_monomial_mul.coefs);
         }
-
-        let monomial = ResiduePoly {
-            coefs: monomial_coefs,
-        };
-
-        let mut poly_coefs = [0u64; N];
-        for i in 0..N {
-            poly_coefs[i] = rand::random::<u64>();
-        }
-        let polynomial = ResiduePoly { coefs: poly_coefs };
-
-        let res_mul = polynomial.mul(&monomial);
-        let res_monomial_mul = polynomial.multiply_by_monomial(monomial_non_null_term);
-
-        assert_eq!(res_mul.coefs, res_monomial_mul.coefs);
     }
 }
