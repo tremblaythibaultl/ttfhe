@@ -1,9 +1,10 @@
 use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
 use crate::{glwe::SecretKey, lwe::LweSecretKey};
+use serde::{Deserialize, Serialize};
 
 pub type BootstrappingKey = Vec<GgswCiphertext>;
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct GgswCiphertext {
     z_m_gt: Vec<GlweCiphertext>,
 }
@@ -40,7 +41,7 @@ impl GgswCiphertext {
     }
 
     /// Performs a product (GGSW x GLWE) -> GLWE.
-    pub fn external_product(&self, ct: GlweCiphertext) -> GlweCiphertext {
+    pub fn external_product(&self, ct: &GlweCiphertext) -> GlweCiphertext {
         let g_inverse_ct = apply_g_inverse(ct);
 
         let mut res = GlweCiphertext::default();
@@ -64,7 +65,7 @@ impl GgswCiphertext {
 // }
 
 /// Decomposition of a GLWE ciphertext.
-fn apply_g_inverse(ct: GlweCiphertext) -> Vec<ResiduePoly> {
+fn apply_g_inverse(ct: &GlweCiphertext) -> Vec<ResiduePoly> {
     let mut res: [ResiduePoly; (k + 1) * ELL] = Default::default();
 
     for i in 0..N {
@@ -99,7 +100,7 @@ pub fn decomposition(val: u64) -> (i8, i8) {
 /// Ciphertext multiplexer. If `ctb` is an encryption of `1`, return `ct1`. Else, return `ct2`.
 pub fn cmux(ctb: &GgswCiphertext, ct1: &GlweCiphertext, ct2: &GlweCiphertext) -> GlweCiphertext {
     let mut res = ct2.sub(ct1);
-    res = ctb.external_product(res);
+    res = ctb.external_product(&res);
     res = res.add(ct1);
     res
 }
@@ -139,7 +140,7 @@ mod tests {
             let msg2 = thread_rng().gen_range(0..16);
             let ct1 = GgswCiphertext::encrypt(msg1, &sk);
             let ct2 = GlweCiphertext::encrypt(encode(msg2), &sk);
-            let res = ct1.external_product(ct2);
+            let res = ct1.external_product(&ct2);
             let pt = decode(res.decrypt(&sk));
             let expected: u8 = msg1 * msg2 % 16;
             assert_eq!(expected, pt);

@@ -2,12 +2,10 @@ use crate::{ggsw::decomposition, ELL, LWE_DIM};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LweCiphertext {
-    #[serde(with = "BigArray")]
-    pub mask: [u64; LWE_DIM],
+    pub mask: Vec<u64>,
     pub body: u64,
 }
 
@@ -22,10 +20,7 @@ impl LweCiphertext {
         let e = normal.sample(&mut rand::thread_rng()).round() as i64;
         let mu_star = mu.wrapping_add_signed(e);
 
-        let mut mask = [0u64; LWE_DIM];
-        for i in 0..LWE_DIM {
-            mask[i] = rand::random::<u64>();
-        }
+        let mask: Vec<u64> = (0..LWE_DIM).map(|_| rand::random::<u64>()).collect();
 
         let mut body = 0u64;
         for i in 0..LWE_DIM {
@@ -62,43 +57,42 @@ impl LweCiphertext {
     }
 
     pub fn add(self, rhs: Self) -> Self {
-        let mut mask = [0u64; LWE_DIM];
-        for i in 0..LWE_DIM {
-            mask[i] = self.mask[i].wrapping_add(rhs.mask[i]);
-        }
+        let mask = self
+            .mask
+            .iter()
+            .zip(rhs.mask)
+            .map(|(a, b)| a.wrapping_add(b))
+            .collect();
 
         let body = self.body.wrapping_add(rhs.body);
 
         LweCiphertext { mask, body }
     }
 
-    pub fn sub(self, rhs: Self) -> Self {
-        let mut mask = [0u64; LWE_DIM];
-        for i in 0..LWE_DIM {
-            mask[i] = self.mask[i].wrapping_sub(rhs.mask[i]);
-        }
+    pub fn sub(self, rhs: &Self) -> Self {
+        let mask = self
+            .mask
+            .iter()
+            .zip(&rhs.mask)
+            .map(|(a, b)| a.wrapping_sub(*b))
+            .collect();
 
         let body = self.body.wrapping_sub(rhs.body);
 
         LweCiphertext { mask, body }
     }
 
-    pub fn multiply_constant_assign(&mut self, constant: u64) -> Self {
-        for i in 0..LWE_DIM {
-            self.mask[i] = self.mask[i].wrapping_mul(constant);
-        }
+    pub fn multiply_constant_assign(&mut self, constant: u64) -> &mut Self {
+        self.mask = self.mask.iter().map(|a| a.wrapping_mul(constant)).collect();
 
         self.body = self.body.wrapping_mul(constant);
 
-        *self
+        self
     }
 
     /// Switch from modulus 2^64 to 2N, with 2N = 2^11.
     pub fn modswitch(&self) -> Self {
-        let mut mask = [0u64; LWE_DIM];
-        for i in 0..LWE_DIM {
-            mask[i] = ((self.mask[i] >> 52) + 1) >> 1;
-        }
+        let mask = self.mask.iter().map(|a| ((a >> 52) + 1) >> 1).collect();
 
         let body = ((self.body >> 52) + 1) >> 1;
 
@@ -107,7 +101,7 @@ impl LweCiphertext {
 
     /// Switch to the key encrypted by `ksk`.
     // TODO: generalize for k > 1
-    pub fn keyswitch(&self, mut ksk: KeySwitchingKey) -> Self {
+    pub fn keyswitch(&self, ksk: &mut KeySwitchingKey) -> Self {
         let mut keyswitched = LweCiphertext {
             body: self.body,
             ..Default::default()
@@ -127,7 +121,7 @@ impl LweCiphertext {
 impl Default for LweCiphertext {
     fn default() -> Self {
         LweCiphertext {
-            mask: [0u64; LWE_DIM],
+            mask: vec![0u64; LWE_DIM],
             body: 0u64,
         }
     }
@@ -173,7 +167,7 @@ mod tests {
 
             let ct1 = LweCiphertext::encrypt(encode(msg), &sk1);
 
-            let res = ct1.keyswitch(ksk.clone()).decrypt(&sk2);
+            let res = ct1.keyswitch(&mut ksk.clone()).decrypt(&sk2);
 
             let pt = decode(res);
 
@@ -214,7 +208,7 @@ mod tests {
             let msg2 = thread_rng().gen_range(0..16);
             let ct1 = LweCiphertext::encrypt(encode(msg1), &sk);
             let ct2 = LweCiphertext::encrypt(encode(msg2), &sk);
-            let res = ct1.sub(ct2);
+            let res = ct1.sub(&ct2);
             let pt = decode(res.decrypt(&sk));
             assert_eq!(pt, (msg1.wrapping_sub(msg2)) % 16);
         }

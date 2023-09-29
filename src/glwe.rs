@@ -4,8 +4,9 @@ use crate::utils::encode;
 use crate::P;
 use crate::{k, poly::ResiduePoly, LWE_DIM, N};
 use rand_distr::{Distribution, Normal};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GlweCiphertext {
     pub mask: Vec<ResiduePoly>,
     pub body: ResiduePoly,
@@ -76,7 +77,10 @@ impl GlweCiphertext {
 
         let body = self.body.coefs[0];
 
-        LweCiphertext { mask, body }
+        LweCiphertext {
+            mask: mask.to_vec(),
+            body,
+        }
     }
 
     /// Trivially encrypts `mu`.
@@ -168,8 +172,8 @@ mod tests {
     use rand::{thread_rng, Rng};
 
     #[test]
-    #[ignore]
-    fn test_bootstrapping() {
+    // #[ignore]
+    fn test_blind_rotation() {
         let sk1 = keygen().recode();
         let sk2 = keygen();
         let bsk = compute_bsk(&sk1, &sk2); // list of encryptions under `sk2` of the bits of `sk1`.
