@@ -167,16 +167,17 @@ pub fn keygen() -> SecretKey {
 mod tests {
     use crate::ggsw::compute_bsk;
     use crate::glwe::{keygen, GlweCiphertext};
-    use crate::lwe::{LweCiphertext, LweSecretKey};
+    use crate::lwe::{compute_ksk, LweCiphertext, LweSecretKey};
     use crate::utils::{decode, decode_bootstrapped, encode};
     use rand::{thread_rng, Rng};
 
     #[test]
-    // #[ignore]
-    fn test_blind_rotation() {
+    #[ignore]
+    fn test_bootstrapping() {
         let sk1 = keygen().recode();
         let sk2 = keygen();
         let bsk = compute_bsk(&sk1, &sk2); // list of encryptions under `sk2` of the bits of `sk1`.
+        let ksk = compute_ksk(&sk2.recode(), &sk1);
 
         let lut = GlweCiphertext::trivial_encrypt_lut_poly();
 
@@ -188,7 +189,10 @@ mod tests {
 
             let blind_rotated_lut = lut.blind_rotate(c, &bsk); // should return a GLWE encryption of X^{- \tilde{\mu}^*} * v(X) which should be equal to a polynomial with constant term \mu.
 
-            let res = blind_rotated_lut.sample_extract().decrypt(&sk2.recode());
+            let res = blind_rotated_lut
+                .sample_extract()
+                .keyswitch(&mut ksk.clone())
+                .decrypt(&sk1);
             let pt = decode_bootstrapped(res);
 
             assert_eq!(msg, pt)
