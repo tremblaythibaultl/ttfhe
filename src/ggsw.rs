@@ -31,9 +31,7 @@ impl GgswCiphertext {
             }
         }
 
-        GgswCiphertext {
-            z_m_gt: z_m_gt.to_vec(),
-        }
+        GgswCiphertext { z_m_gt }
     }
 
     // The last `GlweCiphertext` of `z_m_gt` is an encryption of msg * q/B^l

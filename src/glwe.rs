@@ -3,10 +3,9 @@ use crate::lwe::{LweCiphertext, LweSecretKey};
 use crate::utils::encode;
 use crate::P;
 use crate::{k, poly::ResiduePoly, LWE_DIM, N};
-use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GlweCiphertext {
     pub mask: Vec<ResiduePoly>,
     pub body: ResiduePoly,
@@ -141,29 +140,23 @@ impl SecretKey {
     /// Converts a GLWE secret key into a LWE secret key.
     // TODO: generalize for k > 1
     pub fn recode(&self) -> LweSecretKey {
-        self.polys[0].coefs.to_vec()
+        self.polys[0].coefs.iter().map(|coef| *coef).collect()
     }
 }
 
 impl Default for GlweCiphertext {
     fn default() -> Self {
         GlweCiphertext {
-            mask: [ResiduePoly::default(); k].to_vec(),
+            mask: vec![ResiduePoly::default(); k],
             body: ResiduePoly::default(),
         }
     }
 }
 
 pub fn keygen() -> SecretKey {
-    let mut polys: [ResiduePoly; k] = Default::default();
-    for i in 0..k {
-        for j in 0..N {
-            polys[i].coefs[j] = thread_rng().gen_range(0..=1);
-        }
-    }
-    SecretKey {
-        polys: polys.to_vec(),
-    }
+    let polys: Vec<ResiduePoly> = (0..k).map(|_| ResiduePoly::get_random_bin()).collect();
+
+    SecretKey { polys }
 }
 
 #[cfg(test)]
@@ -186,6 +179,7 @@ mod tests {
         for _ in 0..16 {
             let msg = thread_rng().gen_range(0..8);
 
+            // TODO: keyswitch `c` to a smaller dimesion
             let c = LweCiphertext::encrypt(encode(msg), &sk1).modswitch(); // "noisy" ciphertext that will be bootstrapped
 
             let blind_rotated_lut = lut.blind_rotate(c, &bsk); // should return a GLWE encryption of X^{- \tilde{\mu}^*} * v(X) which should be equal to a polynomial with constant term \mu.

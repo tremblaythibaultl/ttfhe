@@ -1,18 +1,10 @@
 use crate::N;
-use std::fmt::Debug;
+use rand::{thread_rng, Rng};
 
 /// Represents an element of Z_{q}\[X\]/(X^N + 1) with implicit q = 2^64.
 #[derive(Clone)]
 pub struct ResiduePoly {
     pub coefs: Vec<u64>,
-}
-
-impl Debug for ResiduePoly {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ResiduePoly")
-            .field("coefs", &self.coefs)
-            .finish()
-    }
 }
 
 impl ResiduePoly {
@@ -56,7 +48,7 @@ impl ResiduePoly {
 
     // TODO: use NTT for better performances
     pub fn mul(&self, rhs: &ResiduePoly) -> Self {
-        let mut res = Self::default();
+        let mut coefs = Vec::<u64>::with_capacity(N);
         for i in 0..N {
             let mut coef = 0u64;
             for j in 0..i + 1 {
@@ -65,14 +57,21 @@ impl ResiduePoly {
             for j in i + 1..N {
                 coef = coef.wrapping_sub(self.coefs[j].wrapping_mul(rhs.coefs[N - j + i]));
             }
-            res.coefs[i] = coef;
+            coefs.push(coef);
         }
-        res
+        ResiduePoly { coefs }
     }
 
-    /// Generates a residue polynomial with random coefficients
+    /// Generates a residue polynomial with random coefficients in \[0..2^64)
     pub fn get_random() -> Self {
         let coefs = (0..N).map(|_| rand::random::<u64>()).collect();
+
+        Self { coefs }
+    }
+
+    /// Generates a residue polynomial with random coefficients in \[0..1\]
+    pub fn get_random_bin() -> Self {
+        let coefs = (0..N).map(|_| thread_rng().gen_range(0..=1)).collect();
 
         Self { coefs }
     }
@@ -80,7 +79,6 @@ impl ResiduePoly {
     /// Multiplies the residue polynomial by X^{exponent} = X^{2N + exponent}.
     /// `exponent` is assumed to be reduced modulo 2N.
     pub fn multiply_by_monomial(&self, exponent: usize) -> Self {
-        // let mut rotated_coefs = [0u64; N].to_vec()
         let mut rotated_coefs = Vec::<u64>::with_capacity(N);
 
         let reverse = exponent >= N;
@@ -111,7 +109,7 @@ impl ResiduePoly {
 impl Default for ResiduePoly {
     fn default() -> Self {
         ResiduePoly {
-            coefs: [0u64; N].to_vec(),
+            coefs: vec![0u64; N],
         }
     }
 }
@@ -126,7 +124,7 @@ mod tests {
     /// Tests that the monomial multiplication is coherent with monomial multiplication.
     fn test_monomial_mult() {
         for _ in 0..1000 {
-            let mut monomial_coefs = [0u64; N].to_vec();
+            let mut monomial_coefs = vec![0u64; N];
             let monomial_non_null_term = thread_rng().gen_range(0..2 * N);
 
             if monomial_non_null_term < 1024 {
