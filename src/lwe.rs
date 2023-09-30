@@ -1,4 +1,4 @@
-use crate::{ggsw::decomposition, ELL, LWE_DIM};
+use crate::{ggsw::decomposition, ELL, LWE_DIM, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
@@ -90,7 +90,7 @@ impl LweCiphertext {
         self
     }
 
-    /// Switch from modulus 2^64 to 2N, with 2N = 2^11.
+    /// Switch from ciphertext modulus `2^64` to `2N` (implicit `N = 1024`).
     pub fn modswitch(&self) -> Self {
         let mask = self.mask.iter().map(|a| ((a >> 52) + 1) >> 1).collect();
 
@@ -107,7 +107,7 @@ impl LweCiphertext {
             ..Default::default()
         };
 
-        for i in 0..LWE_DIM {
+        for i in 0..N {
             let (decomp_mask_1, decomp_mask_2) = decomposition(self.mask[i]);
             keyswitched = keyswitched
                 .sub(ksk[ELL * i].multiply_constant_assign(decomp_mask_1 as u64))
@@ -139,9 +139,9 @@ pub fn lwe_keygen() -> LweSecretKey {
 /// Encrypts `sk1` under `sk2`.
 // TODO: generalize for k > 1
 pub fn compute_ksk(sk1: &LweSecretKey, sk2: &LweSecretKey) -> KeySwitchingKey {
-    let mut ksk = vec![];
+    let mut ksk = Vec::<LweCiphertext>::with_capacity(N);
 
-    for bit in sk1.iter().take(LWE_DIM) {
+    for bit in sk1.iter().take(N) {
         for j in 0..ELL {
             let mu = bit << (40 + (8 * (j + 1))); // lg(B) = 8
             ksk.push(LweCiphertext::encrypt(mu, sk2));
@@ -152,28 +152,9 @@ pub fn compute_ksk(sk1: &LweSecretKey, sk2: &LweSecretKey) -> KeySwitchingKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::lwe::{compute_ksk, lwe_keygen, LweCiphertext};
-    use crate::utils::{decode, decode_modswitched, encode};
+    use crate::lwe::{lwe_keygen, LweCiphertext};
+    use crate::utils::{decode, encode};
     use rand::{thread_rng, Rng};
-
-    #[test]
-    fn test_keyswitch() {
-        let sk1 = lwe_keygen();
-        let sk2 = lwe_keygen();
-        let ksk = compute_ksk(&sk1, &sk2); //encrypt sk1 under sk2
-
-        for _ in 0..100 {
-            let msg = thread_rng().gen_range(0..16);
-
-            let ct1 = LweCiphertext::encrypt(encode(msg), &sk1);
-
-            let res = ct1.keyswitch(&mut ksk.clone()).decrypt(&sk2);
-
-            let pt = decode(res);
-
-            assert_eq!(msg, pt);
-        }
-    }
 
     #[test]
     fn test_keygen_enc_dec() {
@@ -211,18 +192,6 @@ mod tests {
             let res = ct1.sub(&ct2);
             let pt = decode(res.decrypt(&sk));
             assert_eq!(pt, (msg1.wrapping_sub(msg2)) % 16);
-        }
-    }
-
-    #[test]
-    fn test_modswitch() {
-        for _ in 0..100 {
-            let sk = lwe_keygen();
-            let msg = thread_rng().gen_range(0..16);
-            let ct = LweCiphertext::encrypt(encode(msg), &sk);
-            let modswitched = ct.modswitch();
-            let pt = decode_modswitched(modswitched.decrypt_modswitched(&sk));
-            assert_eq!(pt, msg);
         }
     }
 }

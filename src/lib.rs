@@ -23,5 +23,5 @@ pub const k: usize = 1;
 /// Degree `N` of irreducible polynomial X^N + 1
 pub const N: usize = 1024;
 
-/// Dimension `n` of LWE ciphertexts
-pub const LWE_DIM: usize = N;
+/// Dimension of LWE ciphertexts
+pub const LWE_DIM: usize = 630;

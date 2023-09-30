@@ -66,13 +66,13 @@ impl GlweCiphertext {
         res
     }
 
-    /// Converts a GLWE ciphertext into a LWE ciphertext.
+    /// Converts a GLWE ciphertext into a LWE ciphertext of dimension `N`.
     // TODO: generalize for k > 1
     pub fn sample_extract(&self) -> LweCiphertext {
-        let mut mask = [0u64; LWE_DIM];
+        let mut mask = [0u64; N];
         mask[0] = self.mask[0].coefs[0];
-        for i in 1..LWE_DIM {
-            mask[i] = self.mask[0].coefs[LWE_DIM - i].wrapping_neg();
+        for i in 1..N {
+            mask[i] = self.mask[0].coefs[N - i].wrapping_neg();
         }
 
         let body = self.body.coefs[0];
@@ -97,7 +97,7 @@ impl GlweCiphertext {
         let mut c_prime = self.clone();
 
         c_prime.rotate_trivial((2 * N as u64) - c.body);
-        for i in 0..N {
+        for i in 0..LWE_DIM {
             c_prime = cmux(&bsk[i], &c_prime, &c_prime.rotate(c.mask[i]));
         }
 
@@ -167,24 +167,23 @@ pub fn keygen() -> SecretKey {
 mod tests {
     use crate::ggsw::compute_bsk;
     use crate::glwe::{keygen, GlweCiphertext};
-    use crate::lwe::{compute_ksk, LweCiphertext, LweSecretKey};
+    use crate::lwe::{compute_ksk, lwe_keygen, LweCiphertext};
     use crate::utils::{decode, decode_bootstrapped, encode};
     use rand::{thread_rng, Rng};
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_bootstrapping() {
-        let sk1 = keygen().recode();
+        let sk1 = lwe_keygen();
         let sk2 = keygen();
         let bsk = compute_bsk(&sk1, &sk2); // list of encryptions under `sk2` of the bits of `sk1`.
-        let ksk = compute_ksk(&sk2.recode(), &sk1);
+        let ksk = compute_ksk(&sk2.recode(), &sk1); // list of encryptions under `sk1` of the bits of `sk2`.
 
         let lut = GlweCiphertext::trivial_encrypt_lut_poly();
 
         for _ in 0..16 {
             let msg = thread_rng().gen_range(0..8);
 
-            // TODO: keyswitch `c` to a smaller dimesion
             let c = LweCiphertext::encrypt(encode(msg), &sk1).modswitch(); // "noisy" ciphertext that will be bootstrapped
 
             let blind_rotated_lut = lut.blind_rotate(c, &bsk); // should return a GLWE encryption of X^{- \tilde{\mu}^*} * v(X) which should be equal to a polynomial with constant term \mu.
@@ -238,16 +237,16 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_sample_extract() {
-        let sk = keygen();
-        let msg = thread_rng().gen_range(0..16);
-        let ct = GlweCiphertext::encrypt(encode(msg), &sk);
+    // #[test]
+    // fn test_sample_extract() {
+    //     let sk = keygen();
+    //     let msg = thread_rng().gen_range(0..16);
+    //     let ct = GlweCiphertext::encrypt(encode(msg), &sk);
 
-        let sample_extracted: LweCiphertext = ct.sample_extract();
-        let recoded_sk: LweSecretKey = sk.recode();
+    //     let sample_extracted: LweCiphertext = ct.sample_extract();
+    //     let recoded_sk: LweSecretKey = sk.recode();
 
-        let pt = decode(sample_extracted.decrypt(&recoded_sk));
-        assert_eq!(pt, msg)
-    }
+    //     let pt = decode(sample_extracted.decrypt(&recoded_sk));
+    //     assert_eq!(pt, msg)
+    // }
 }

@@ -1,3 +1,4 @@
+use crate::LWE_DIM;
 use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
 use crate::{glwe::SecretKey, lwe::LweSecretKey};
 use serde::{Deserialize, Serialize};
@@ -56,14 +57,6 @@ impl GgswCiphertext {
     }
 }
 
-// impl Default for GgswCiphertext {
-//     fn default() -> Self {
-//         GgswCiphertext {
-//             z_m_gt: Default::default(),
-//         }
-//     }
-// }
-
 /// Decomposition of a GLWE ciphertext.
 fn apply_g_inverse(ct: &GlweCiphertext) -> Vec<ResiduePoly> {
     let mut res: [ResiduePoly; (k + 1) * ELL] = Default::default();
@@ -107,7 +100,7 @@ pub fn cmux(ctb: &GgswCiphertext, ct1: &GlweCiphertext, ct2: &GlweCiphertext) ->
 
 /// Encrypts the bits of `s` under `sk`
 pub fn compute_bsk(s: &LweSecretKey, sk: &SecretKey) -> BootstrappingKey {
-    let bsk: Vec<GgswCiphertext> = (0..N)
+    let bsk: Vec<GgswCiphertext> = (0..LWE_DIM)
         .map(|i| GgswCiphertext::encrypt(s[i].try_into().unwrap(), sk))
         .collect();
 
