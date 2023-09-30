@@ -100,6 +100,7 @@ impl LweCiphertext {
     }
 
     /// Switch to the key encrypted by `ksk`.
+    /// This reduces the dimension of the ciphertext.
     // TODO: generalize for k > 1
     pub fn keyswitch(&self, ksk: &mut KeySwitchingKey) -> Self {
         let mut keyswitched = LweCiphertext {

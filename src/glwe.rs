@@ -190,9 +190,9 @@ mod tests {
 
             let res = blind_rotated_lut
                 .sample_extract()
-                .keyswitch(&mut ksk.clone())
-                .decrypt(&sk1);
-            let pt = decode_bootstrapped(res);
+                .keyswitch(&mut ksk.clone());
+
+            let pt = decode_bootstrapped(res.decrypt(&sk1));
 
             assert_eq!(msg, pt)
         }
