@@ -47,7 +47,7 @@ impl ResiduePoly {
         res
     }
 
-    // TODO: use NTT for better performances
+    // TODO: use FFT for better performances
     pub fn mul(&self, rhs: &ResiduePoly) -> Self {
         let mut coefs = Vec::<u64>::with_capacity(N);
         for i in 0..N {
