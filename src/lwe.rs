@@ -14,6 +14,13 @@ pub type KeySwitchingKey = Vec<LweCiphertext>;
 
 impl LweCiphertext {
     pub fn encrypt(mu: u64, sk: &LweSecretKey) -> LweCiphertext {
+        /*
+        TODO: `sigma` should be 2^49. I can't set it to this value at the moment because
+        it would cause the key switching to fail. I suspect the decomposition used in
+        the key switching is erroneous as it is implemented now.
+        Setting `sigma = 2^29` affects security of LWE ciphertexts
+        but shouldn't affect the time complexity of the bootstrapping considerably.
+         */
         let sigma = f64::powf(2.0, 29.0);
         let normal = Normal::new(0.0, sigma).unwrap();
 
@@ -36,7 +43,7 @@ impl LweCiphertext {
 
     pub fn decrypt(self, sk: &LweSecretKey) -> u64 {
         let mut body: u64 = 0u64;
-        for i in 0..LWE_DIM {
+        for i in 0..sk.len() {
             if sk[i] == 1 {
                 body = body.wrapping_add(self.mask[i]);
             }
@@ -140,7 +147,7 @@ pub fn lwe_keygen() -> LweSecretKey {
 /// Encrypts `sk1` under `sk2`.
 // TODO: generalize for k > 1
 pub fn compute_ksk(sk1: &LweSecretKey, sk2: &LweSecretKey) -> KeySwitchingKey {
-    let mut ksk = Vec::<LweCiphertext>::with_capacity(N);
+    let mut ksk = Vec::<LweCiphertext>::with_capacity(2 * N);
 
     for bit in sk1.iter().take(N) {
         for j in 0..ELL {

@@ -144,7 +144,12 @@ impl SecretKey {
     /// Converts a GLWE secret key into a LWE secret key.
     // TODO: generalize for k > 1
     pub fn recode(&self) -> LweSecretKey {
-        self.polys[0].coefs.iter().map(|coef| *coef).collect()
+        self.polys[0]
+            .coefs
+            .iter()
+            .copied()
+            .map(|coef| coef)
+            .collect()
     }
 }
 
@@ -167,7 +172,7 @@ pub fn keygen() -> SecretKey {
 mod tests {
     use crate::ggsw::compute_bsk;
     use crate::glwe::{keygen, GlweCiphertext};
-    use crate::lwe::{compute_ksk, lwe_keygen, LweCiphertext};
+    use crate::lwe::{compute_ksk, lwe_keygen, LweCiphertext, LweSecretKey};
     use crate::utils::{decode, decode_bootstrapped, encode};
     use rand::{thread_rng, Rng};
 
@@ -237,16 +242,16 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_sample_extract() {
-    //     let sk = keygen();
-    //     let msg = thread_rng().gen_range(0..16);
-    //     let ct = GlweCiphertext::encrypt(encode(msg), &sk);
+    #[test]
+    fn test_sample_extract() {
+        let sk = keygen();
+        let msg = thread_rng().gen_range(0..16);
+        let ct = GlweCiphertext::encrypt(encode(msg), &sk);
 
-    //     let sample_extracted: LweCiphertext = ct.sample_extract();
-    //     let recoded_sk: LweSecretKey = sk.recode();
+        let sample_extracted: LweCiphertext = ct.sample_extract();
+        let recoded_sk: LweSecretKey = sk.recode();
 
-    //     let pt = decode(sample_extracted.decrypt(&recoded_sk));
-    //     assert_eq!(pt, msg)
-    // }
+        let pt = decode(sample_extracted.decrypt(&recoded_sk));
+        assert_eq!(pt, msg)
+    }
 }
