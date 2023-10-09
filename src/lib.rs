@@ -4,7 +4,7 @@ pub mod lwe;
 pub mod poly;
 pub mod utils;
 
-/// Decomposition basis. This value is used implicitely.
+/// Decomposition basis for the external product. This value is used implicitely.
 // pub const B: usize = 256;
 
 /// Ciphertext modulus. This value is used implicitely.
@@ -13,7 +13,7 @@ pub mod utils;
 /// Plaintext modulus
 pub const P: usize = 16;
 
-/// Number of decomposition layers
+/// Number of decomposition layers for the external product.
 pub const ELL: usize = 2;
 
 /// GLWE dimension

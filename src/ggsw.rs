@@ -1,3 +1,4 @@
+use crate::utils::round_value;
 use crate::LWE_DIM;
 use crate::{glwe::GlweCiphertext, k, poly::ResiduePoly, ELL, N};
 use crate::{glwe::SecretKey, lwe::LweSecretKey};
@@ -64,25 +65,23 @@ fn apply_g_inverse(ct: &GlweCiphertext) -> Vec<ResiduePoly> {
     for i in 0..N {
         // mask decomposition
         for j in 0..k {
-            let (nu_2, nu_1) = decomposition(ct.mask[j].coefs[i]);
+            let (nu_2, nu_1) = decomposition_8_2(ct.mask[j].coefs[i]);
             res[j * ELL].coefs[i] = nu_1 as u64;
             res[j * ELL + 1].coefs[i] = nu_2 as u64;
         }
 
         // body decomposition
-        let (nu_2, nu_1) = decomposition(ct.body.coefs[i]);
+        let (nu_2, nu_1) = decomposition_8_2(ct.body.coefs[i]);
         res[(k + 1) * ELL - 2].coefs[i] = nu_1 as u64;
         res[(k + 1) * ELL - 1].coefs[i] = nu_2 as u64;
     }
     res.to_vec()
 }
 
-/// Approximate decomposition with B = 256 and ell = 2.
+/// Approximate decomposition with lg(B) = 8 and ell = 2.
 /// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in two signed 8-bit integers.
-pub fn decomposition(val: u64) -> (i8, i8) {
-    let mut rounded_val = val >> 47;
-    rounded_val += rounded_val & 1;
-    rounded_val >>= 1;
+pub fn decomposition_8_2(val: u64) -> (i8, i8) {
+    let rounded_val = round_value(val);
     if rounded_val & 128 == 128 {
         (rounded_val as i8, ((rounded_val >> 8) + 1) as i8)
     } else {

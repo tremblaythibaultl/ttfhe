@@ -1,4 +1,4 @@
-use crate::{ggsw::decomposition, ELL, LWE_DIM, N};
+use crate::{utils::round_value, LWE_DIM, N};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
@@ -14,14 +14,7 @@ pub type KeySwitchingKey = Vec<LweCiphertext>;
 
 impl LweCiphertext {
     pub fn encrypt(mu: u64, sk: &LweSecretKey) -> LweCiphertext {
-        /*
-        TODO: `sigma` should be 2^49. I can't set it to this value at the moment because
-        it would cause the key switching to fail. I suspect the decomposition used in
-        the key switching is erroneous as it is implemented now.
-        Setting `sigma = 2^29` affects security of LWE ciphertexts
-        but shouldn't affect the time complexity of the bootstrapping considerably.
-         */
-        let sigma = f64::powf(2.0, 29.0);
+        let sigma = f64::powf(2.0, 49.0);
         let normal = Normal::new(0.0, sigma).unwrap();
 
         let e = normal.sample(&mut rand::thread_rng()).round() as i64;
@@ -115,11 +108,13 @@ impl LweCiphertext {
             ..Default::default()
         };
 
-        for i in 0..N {
-            let (decomp_mask_1, decomp_mask_2) = decomposition(self.mask[i]);
+        for i in (0..4 * N).step_by(4) {
+            let decomp = decomposition_4_4(self.mask[i / 4]);
             keyswitched = keyswitched
-                .sub(ksk[ELL * i].multiply_constant_assign(decomp_mask_1 as u64))
-                .sub(ksk[(ELL * i) + 1].multiply_constant_assign(decomp_mask_2 as u64));
+                .sub(ksk[i].multiply_constant_assign(decomp[0]))
+                .sub(ksk[i + 1].multiply_constant_assign(decomp[1]))
+                .sub(ksk[i + 2].multiply_constant_assign(decomp[2]))
+                .sub(ksk[i + 3].multiply_constant_assign(decomp[3]));
         }
 
         keyswitched
@@ -135,6 +130,27 @@ impl Default for LweCiphertext {
     }
 }
 
+/// Approximate decomposition with lg(B) = 4 and ell = 4.
+/// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in 4 integers in `[-8, 7] as u64`.
+pub fn decomposition_4_4(val: u64) -> [u64; 4] {
+    let mut ret = [0u64; 4];
+    let rounded_val = round_value(val);
+
+    let mut carry = 0u64;
+    for i in 0..4 {
+        let mut res = ((rounded_val >> (4 * i)) & 0x0F) + carry;
+
+        let carry_bit = res & 8;
+
+        res = res.wrapping_sub(carry_bit << 1);
+        ret[i] = res;
+
+        carry = carry_bit >> 3;
+    }
+
+    ret
+}
+
 pub fn lwe_keygen() -> LweSecretKey {
     let mut sk = Vec::<u64>::with_capacity(LWE_DIM);
     for _ in 0..LWE_DIM {
@@ -147,11 +163,12 @@ pub fn lwe_keygen() -> LweSecretKey {
 /// Encrypts `sk1` under `sk2`.
 // TODO: generalize for k > 1
 pub fn compute_ksk(sk1: &LweSecretKey, sk2: &LweSecretKey) -> KeySwitchingKey {
-    let mut ksk = Vec::<LweCiphertext>::with_capacity(2 * N);
+    let mut ksk = Vec::<LweCiphertext>::with_capacity(4 * N);
 
     for bit in sk1.iter().take(N) {
-        for j in 0..ELL {
-            let mu = bit << (40 + (8 * (j + 1))); // lg(B) = 8
+        // 4 layers in the decomposition for the KSK
+        for j in 0..4 {
+            let mu = bit << (48 + (4 * j)); // lg(B) = 4
             ksk.push(LweCiphertext::encrypt(mu, sk2));
         }
     }

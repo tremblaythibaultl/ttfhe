@@ -195,9 +195,26 @@ mod tests {
 
             let res = blind_rotated_lut
                 .sample_extract()
-                .keyswitch(&mut ksk.clone());
+                .keyswitch(&mut ksk.clone())
+                .decrypt(&sk1);
 
-            let pt = decode_bootstrapped(res.decrypt(&sk1));
+            let pt = decode_bootstrapped(res);
+            assert_eq!(msg, pt)
+        }
+    }
+
+    #[test]
+    fn test_keyswitching() {
+        let sk1 = lwe_keygen();
+        let sk2 = keygen();
+        let ksk = compute_ksk(&sk2.recode(), &sk1); // list of encryptions under `sk1` of the bits of `sk2`.
+
+        for _ in 0..100 {
+            let msg = thread_rng().gen_range(0..8);
+            let ct = GlweCiphertext::encrypt(encode(msg), &sk2).sample_extract();
+            let ks = ct.keyswitch(&mut ksk.clone());
+            let res = ks.decrypt(&sk1);
+            let pt = decode(res);
 
             assert_eq!(msg, pt)
         }
