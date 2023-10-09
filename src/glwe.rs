@@ -203,6 +203,8 @@ mod tests {
         }
     }
 
+    /// This test fails from time to time.
+    /// It might be the case that B = 16, ell = 4 isn't suitable for keyswitching.
     #[test]
     fn test_keyswitching() {
         let sk1 = lwe_keygen();
