@@ -19,11 +19,11 @@ pub struct SecretKey {
 }
 
 impl GlweCiphertext {
-    pub fn encrypt(mu: u64, sk: &SecretKey) -> GlweCiphertext {
-        let sigma = f64::powf(2.0, 39.0);
+    pub fn encrypt(mu: u32, sk: &SecretKey) -> GlweCiphertext {
+        let sigma = f32::powf(2.0, 7.0);
         let normal = Normal::new(0.0, sigma).unwrap();
 
-        let e = normal.sample(&mut rand::thread_rng()).round() as i64;
+        let e = normal.sample(&mut rand::thread_rng()).round() as i32;
         let mu_star = mu.wrapping_add_signed(e);
 
         let mask: Vec<ResiduePoly> = (0..k).map(|_| ResiduePoly::get_random()).collect();
@@ -33,12 +33,12 @@ impl GlweCiphertext {
             body.add_assign(&mask[i].mul(&sk.polys[i]));
         }
 
-        body.add_constant_assign(mu_star as u64);
+        body.add_constant_assign(mu_star as u32);
 
         GlweCiphertext { mask, body }
     }
 
-    pub fn decrypt(&self, sk: &SecretKey) -> u64 {
+    pub fn decrypt(&self, sk: &SecretKey) -> u32 {
         let mut body = ResiduePoly::default();
         for i in 0..k {
             body.add_assign(&self.mask[i].mul(&sk.polys[i]));
@@ -69,7 +69,7 @@ impl GlweCiphertext {
     /// Converts a GLWE ciphertext into a LWE ciphertext of dimension `N`.
     // TODO: generalize for k > 1
     pub fn sample_extract(&self) -> LweCiphertext {
-        let mut mask = [0u64; N];
+        let mut mask = [0u32; N];
         mask[0] = self.mask[0].coefs[0];
         for i in 1..N {
             mask[i] = self.mask[0].coefs[N - i].wrapping_neg();
@@ -84,7 +84,7 @@ impl GlweCiphertext {
     }
 
     /// Trivially encrypts `mu`.
-    pub fn trivial_encrypt(mu: u64) -> Self {
+    pub fn trivial_encrypt(mu: u32) -> Self {
         let mut res = Self::default();
         res.body.coefs[0] = mu;
         res
@@ -96,7 +96,7 @@ impl GlweCiphertext {
     pub fn blind_rotate(&self, c: LweCiphertext, bsk: &BootstrappingKey) -> Self {
         let mut c_prime = self.clone();
 
-        c_prime.rotate_trivial((2 * N as u64) - c.body);
+        c_prime.rotate_trivial((2 * N as u32) - c.body);
         for i in 0..LWE_DIM {
             c_prime = cmux(&bsk[i], &c_prime, &c_prime.rotate(c.mask[i]));
         }
@@ -106,12 +106,12 @@ impl GlweCiphertext {
 
     /// Multiplies by the monomial `X^exponent` the body of `self`.
     /// `self` is assumed to be a trivial encryption.
-    fn rotate_trivial(&mut self, exponent: u64) {
+    fn rotate_trivial(&mut self, exponent: u32) {
         self.body = self.body.multiply_by_monomial(exponent as usize);
     }
 
     /// Multiplies by the monomial `X^exponent` every component of `self`.
-    pub fn rotate(&self, exponent: u64) -> Self {
+    pub fn rotate(&self, exponent: u32) -> Self {
         let mut res = Self::default();
         for i in 0..k {
             res.mask[i] = self.mask[i].multiply_by_monomial(exponent as usize);
@@ -125,7 +125,7 @@ impl GlweCiphertext {
     /// Trivially encrypts the LUT polynomial.
     pub fn trivial_encrypt_lut_poly() -> Self {
         // TODO: use iterator
-        let mut lut_coefs = [0u64; N];
+        let mut lut_coefs = [0u32; N];
 
         for i in 0..N {
             lut_coefs[(i.wrapping_sub(64)) % N] = encode(((P * i) / (2 * N)).try_into().unwrap());

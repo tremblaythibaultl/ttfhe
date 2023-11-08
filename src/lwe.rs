@@ -5,24 +5,24 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct LweCiphertext {
-    pub mask: Vec<u64>,
-    pub body: u64,
+    pub mask: Vec<u32>,
+    pub body: u32,
 }
 
-pub type LweSecretKey = Vec<u64>;
+pub type LweSecretKey = Vec<u32>;
 pub type KeySwitchingKey = Vec<LweCiphertext>;
 
 impl LweCiphertext {
-    pub fn encrypt(mu: u64, sk: &LweSecretKey) -> LweCiphertext {
-        let sigma = f64::powf(2.0, 49.0);
+    pub fn encrypt(mu: u32, sk: &LweSecretKey) -> LweCiphertext {
+        let sigma = f64::powf(2.0, 17.0);
         let normal = Normal::new(0.0, sigma).unwrap();
 
-        let e = normal.sample(&mut rand::thread_rng()).round() as i64;
+        let e = normal.sample(&mut rand::thread_rng()).round() as i32;
         let mu_star = mu.wrapping_add_signed(e);
 
-        let mask: Vec<u64> = (0..LWE_DIM).map(|_| rand::random::<u64>()).collect();
+        let mask: Vec<u32> = (0..LWE_DIM).map(|_| rand::random::<u32>()).collect();
 
-        let mut body = 0u64;
+        let mut body = 0u32;
         for i in 0..LWE_DIM {
             if sk[i] == 1 {
                 body = body.wrapping_add(mask[i]);
@@ -34,8 +34,8 @@ impl LweCiphertext {
         LweCiphertext { mask, body }
     }
 
-    pub fn decrypt(self, sk: &LweSecretKey) -> u64 {
-        let mut body: u64 = 0u64;
+    pub fn decrypt(self, sk: &LweSecretKey) -> u32 {
+        let mut body: u32 = 0u32;
         for i in 0..sk.len() {
             if sk[i] == 1 {
                 body = body.wrapping_add(self.mask[i]);
@@ -45,15 +45,15 @@ impl LweCiphertext {
         self.body.wrapping_sub(body) // mu_star
     }
 
-    pub fn decrypt_modswitched(self, sk: &LweSecretKey) -> u64 {
-        let mut dot_prod = 0u64;
+    pub fn decrypt_modswitched(self, sk: &LweSecretKey) -> u32 {
+        let mut dot_prod = 0u32;
         for i in 0..LWE_DIM {
             if sk[i] == 1 {
-                dot_prod = (dot_prod + self.mask[i]) % (2 * LWE_DIM as u64);
+                dot_prod = (dot_prod + self.mask[i]) % (2 * LWE_DIM as u32);
             }
         }
 
-        self.body.wrapping_sub(dot_prod) % (2 * LWE_DIM as u64) // mu_star
+        self.body.wrapping_sub(dot_prod) % (2 * LWE_DIM as u32) // mu_star
     }
 
     pub fn add(self, rhs: Self) -> Self {
@@ -82,7 +82,7 @@ impl LweCiphertext {
         LweCiphertext { mask, body }
     }
 
-    pub fn multiply_constant_assign(&mut self, constant: u64) -> &mut Self {
+    pub fn multiply_constant_assign(&mut self, constant: u32) -> &mut Self {
         self.mask = self.mask.iter().map(|a| a.wrapping_mul(constant)).collect();
 
         self.body = self.body.wrapping_mul(constant);
@@ -94,7 +94,7 @@ impl LweCiphertext {
     pub fn modswitch(&self) -> Self {
         let mask = self.mask.iter().map(|a| ((a >> 52) + 1) >> 1).collect();
 
-        let body = ((self.body >> 52) + 1) >> 1;
+        let body = ((self.body >> 20) + 1) >> 1;
 
         LweCiphertext { mask, body }
     }
@@ -124,19 +124,19 @@ impl LweCiphertext {
 impl Default for LweCiphertext {
     fn default() -> Self {
         LweCiphertext {
-            mask: vec![0u64; LWE_DIM],
-            body: 0u64,
+            mask: vec![0u32; LWE_DIM],
+            body: 0u32,
         }
     }
 }
 
 /// Approximate decomposition with lg(B) = 4 and ell = 4.
-/// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in 4 integers in `[-8, 7] as u64`.
-pub fn decomposition_4_4(val: u64) -> [u64; 4] {
-    let mut ret = [0u64; 4];
+/// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in 4 integers in `[-8, 7] as u32`.
+pub fn decomposition_4_4(val: u32) -> [u32; 4] {
+    let mut ret = [0u32; 4];
     let rounded_val = round_value(val);
 
-    let mut carry = 0u64;
+    let mut carry = 0u32;
     for i in 0..4 {
         let mut res = ((rounded_val >> (4 * i)) & 0x0F) + carry;
 
@@ -152,7 +152,7 @@ pub fn decomposition_4_4(val: u64) -> [u64; 4] {
 }
 
 pub fn lwe_keygen() -> LweSecretKey {
-    let mut sk = Vec::<u64>::with_capacity(LWE_DIM);
+    let mut sk = Vec::<u32>::with_capacity(LWE_DIM);
     for _ in 0..LWE_DIM {
         sk.push(thread_rng().gen_range(0..=1));
     }
@@ -168,7 +168,7 @@ pub fn compute_ksk(sk1: &LweSecretKey, sk2: &LweSecretKey) -> KeySwitchingKey {
     for bit in sk1.iter().take(N) {
         // 4 layers in the decomposition for the KSK
         for j in 0..4 {
-            let mu = bit << (48 + (4 * j)); // lg(B) = 4
+            let mu = bit << (16 + (4 * j)); // lg(B) = 4
             ksk.push(LweCiphertext::encrypt(mu, sk2));
         }
     }

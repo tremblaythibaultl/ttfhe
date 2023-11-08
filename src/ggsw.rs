@@ -19,9 +19,9 @@ impl GgswCiphertext {
             .collect();
 
         // m * g, g being [q/B, ..., q/B^l]
-        let mut mg = [0u64; ELL];
-        mg[0] = (msg as u64) << 56;
-        mg[1] = (msg as u64) << 48;
+        let mut mg = [0u32; ELL];
+        mg[0] = (msg as u32) << 24;
+        mg[1] = (msg as u32) << 16;
 
         // add m * G^t to Z
         for i in 0..z_m_gt.len() {
@@ -39,7 +39,7 @@ impl GgswCiphertext {
 
     // The last `GlweCiphertext` of `z_m_gt` is an encryption of msg * q/B^l
     pub fn decrypt(self, sk: &SecretKey) -> u8 {
-        ((((&self.z_m_gt[self.z_m_gt.len() - 1].decrypt(sk) >> 47) + 1) >> 1) % 16) as u8
+        ((((&self.z_m_gt[self.z_m_gt.len() - 1].decrypt(sk) >> 15) + 1) >> 1) % 16) as u8
     }
 
     /// Performs a product (GGSW x GLWE) -> GLWE.
@@ -66,21 +66,21 @@ fn apply_g_inverse(ct: &GlweCiphertext) -> Vec<ResiduePoly> {
         // mask decomposition
         for j in 0..k {
             let (nu_2, nu_1) = decomposition_8_2(ct.mask[j].coefs[i]);
-            res[j * ELL].coefs[i] = nu_1 as u64;
-            res[j * ELL + 1].coefs[i] = nu_2 as u64;
+            res[j * ELL].coefs[i] = nu_1 as u32;
+            res[j * ELL + 1].coefs[i] = nu_2 as u32;
         }
 
         // body decomposition
         let (nu_2, nu_1) = decomposition_8_2(ct.body.coefs[i]);
-        res[(k + 1) * ELL - 2].coefs[i] = nu_1 as u64;
-        res[(k + 1) * ELL - 1].coefs[i] = nu_2 as u64;
+        res[(k + 1) * ELL - 2].coefs[i] = nu_1 as u32;
+        res[(k + 1) * ELL - 1].coefs[i] = nu_2 as u32;
     }
     res.to_vec()
 }
 
 /// Approximate decomposition with lg(B) = 8 and ell = 2.
 /// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in two signed 8-bit integers.
-pub fn decomposition_8_2(val: u64) -> (i8, i8) {
+pub fn decomposition_8_2(val: u32) -> (i8, i8) {
     let rounded_val = round_value(val);
     if rounded_val & 128 == 128 {
         (rounded_val as i8, ((rounded_val >> 8) + 1) as i8)
