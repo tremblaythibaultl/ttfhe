@@ -2,7 +2,7 @@ use crate::N;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
-/// Represents an element of Z_{q}\[X\]/(X^N + 1) with implicit q = 2^64.
+/// Represents an element of Z_{q}\[X\]/(X^N + 1) with implicit q = 2^32.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ResiduePoly {
     pub coefs: Vec<u32>,
@@ -63,7 +63,7 @@ impl ResiduePoly {
         ResiduePoly { coefs }
     }
 
-    /// Generates a residue polynomial with random coefficients in \[0..2^64)
+    /// Generates a residue polynomial with random coefficients in \[0..2^32)
     pub fn get_random() -> Self {
         let coefs = (0..N).map(|_| rand::random::<u32>()).collect();
 

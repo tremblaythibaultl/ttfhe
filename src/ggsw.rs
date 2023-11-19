@@ -79,7 +79,7 @@ fn apply_g_inverse(ct: &GlweCiphertext) -> Vec<ResiduePoly> {
 }
 
 /// Approximate decomposition with lg(B) = 8 and ell = 2.
-/// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in two signed 8-bit integers.
+/// Takes a polynomial coefficient in Z_{2^32} and decomposes its 16 MSBs in two signed 8-bit integers.
 pub fn decomposition_8_2(val: u32) -> (i8, i8) {
     let rounded_val = round_value(val);
     if rounded_val & 128 == 128 {

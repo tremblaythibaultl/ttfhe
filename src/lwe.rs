@@ -90,7 +90,7 @@ impl LweCiphertext {
         self
     }
 
-    /// Switch from ciphertext modulus `2^64` to `2N` (implicit `N = 1024`).
+    /// Switch from ciphertext modulus `2^32` to `2N` (implicit `N = 1024`).
     pub fn modswitch(&self) -> Self {
         let mask = self.mask.iter().map(|a| ((a >> 52) + 1) >> 1).collect();
 
@@ -131,7 +131,7 @@ impl Default for LweCiphertext {
 }
 
 /// Approximate decomposition with lg(B) = 4 and ell = 4.
-/// Takes a polynomial coefficient in Z_{2^64} and decomposes its 16 MSBs in 4 integers in `[-8, 7] as u32`.
+/// Takes a polynomial coefficient in Z_{2^32} and decomposes its 16 MSBs in 4 integers in `[-8, 7] as u32`.
 pub fn decomposition_4_4(val: u32) -> [u32; 4] {
     let mut ret = [0u32; 4];
     let rounded_val = round_value(val);

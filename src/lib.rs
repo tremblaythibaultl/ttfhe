@@ -8,7 +8,7 @@ pub mod utils;
 // pub const B: usize = 256;
 
 /// Ciphertext modulus. This value is used implicitely.
-// pub const Q: usize = 2^64;
+// pub const Q: usize = 2^32;
 
 /// Plaintext modulus
 pub const P: usize = 16;
