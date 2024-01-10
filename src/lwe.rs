@@ -108,13 +108,16 @@ impl LweCiphertext {
             ..Default::default()
         };
 
-        for i in (0..4 * N).step_by(4) {
-            let decomp = decomposition_4_4(self.mask[i / 4]);
+        for i in (0..7 * N).step_by(7) {
+            let decomp = decomposition_4_7(self.mask[i / 7]);
             keyswitched = keyswitched
                 .sub(ksk[i].multiply_constant_assign(decomp[0]))
                 .sub(ksk[i + 1].multiply_constant_assign(decomp[1]))
                 .sub(ksk[i + 2].multiply_constant_assign(decomp[2]))
-                .sub(ksk[i + 3].multiply_constant_assign(decomp[3]));
+                .sub(ksk[i + 3].multiply_constant_assign(decomp[3]))
+                .sub(ksk[i + 4].multiply_constant_assign(decomp[4]))
+                .sub(ksk[i + 5].multiply_constant_assign(decomp[5]))
+                .sub(ksk[i + 6].multiply_constant_assign(decomp[6]))
         }
 
         keyswitched
@@ -128,6 +131,26 @@ impl Default for LweCiphertext {
             body: 0u32,
         }
     }
+}
+
+/// Approximate decomposition with lg(B) = 4 and ell = 7.
+pub fn decomposition_4_7(val: u32) -> [u32; 7] {
+    let mut ret = [0u32; 7];
+    let rounded_val = round_value(val);
+
+    let mut carry = 0u32;
+    for i in 0..7 {
+        let mut res = ((rounded_val >> (4 * i)) & 0x0F) + carry;
+
+        let carry_bit = res & 8;
+
+        res = res.wrapping_sub(carry_bit << 1);
+        ret[i] = res;
+
+        carry = carry_bit >> 3;
+    }
+
+    ret
 }
 
 /// Approximate decomposition with lg(B) = 4 and ell = 4.
@@ -163,12 +186,12 @@ pub fn lwe_keygen() -> LweSecretKey {
 /// Encrypts `sk1` under `sk2`.
 // TODO: generalize for k > 1
 pub fn compute_ksk(sk1: &LweSecretKey, sk2: &LweSecretKey) -> KeySwitchingKey {
-    let mut ksk = Vec::<LweCiphertext>::with_capacity(4 * N);
+    let mut ksk = Vec::<LweCiphertext>::with_capacity(7 * N);
 
     for bit in sk1.iter().take(N) {
-        // 4 layers in the decomposition for the KSK
-        for j in 0..4 {
-            let mu = bit << (16 + (4 * j)); // lg(B) = 4
+        // 7 layers in the decomposition for the KSK
+        for j in 0..7 {
+            let mu = bit << (4 + (4 * j)); // lg(B) = 4
             ksk.push(LweCiphertext::encrypt(mu, sk2));
         }
     }
