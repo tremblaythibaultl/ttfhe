@@ -92,7 +92,7 @@ impl LweCiphertext {
 
     /// Switch from ciphertext modulus `2^32` to `2N` (implicit `N = 1024`).
     pub fn modswitch(&self) -> Self {
-        let mask = self.mask.iter().map(|a| ((a >> 52) + 1) >> 1).collect();
+        let mask = self.mask.iter().map(|a| ((a >> 20) + 1) >> 1).collect();
 
         let body = ((self.body >> 20) + 1) >> 1;
 
