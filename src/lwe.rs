@@ -1,4 +1,7 @@
-use crate::{utils::round_value, LWE_DIM, N};
+use crate::{
+    utils::{round_value, round_value_ks},
+    LWE_DIM, N,
+};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
@@ -132,7 +135,7 @@ impl Default for LweCiphertext {
 /// Approximate decomposition with lg(B) = 4 and ell = 7.
 pub fn decomposition_4_3(val: u32) -> [u32; 3] {
     let mut ret = [0u32; 3];
-    let rounded_val = round_value(val);
+    let rounded_val = round_value_ks(val);
 
     let mut carry = 0u32;
     for i in 0..3 {

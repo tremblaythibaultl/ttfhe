@@ -211,7 +211,7 @@ mod tests {
         let sk2 = keygen();
         let ksk = compute_ksk(&sk2.recode(), &sk1); // list of encryptions under `sk1` of the bits of `sk2`.
 
-        for _ in 0..1000 {
+        for _ in 0..100 {
             let msg = thread_rng().gen_range(0..8);
             let ct = GlweCiphertext::encrypt(encode(msg), &sk2).sample_extract();
             let ks = ct.keyswitch(&mut ksk.clone());

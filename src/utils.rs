@@ -15,6 +15,13 @@ pub fn decode_bootstrapped(mu: u32) -> u8 {
 }
 
 pub fn round_value(val: u32) -> u32 {
+    let mut rounded_val = val >> 15; // this should affect bootstrapping.
+    rounded_val += rounded_val & 1;
+    rounded_val >>= 1;
+    rounded_val
+}
+
+pub fn round_value_ks(val: u32) -> u32 {
     let mut rounded_val = val >> 19; // this should affect bootstrapping.
     rounded_val += rounded_val & 1;
     rounded_val >>= 1;
