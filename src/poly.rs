@@ -16,17 +16,25 @@ impl ResiduePoly {
     }
 
     pub fn add(&self, rhs: &ResiduePoly) -> Self {
-        let mut res = Self::default();
-        for i in 0..N {
-            res.coefs[i] = self.coefs[i].wrapping_add(rhs.coefs[i]);
-        }
-        res
+        let coefs = self
+            .coefs
+            .iter()
+            .zip(rhs.coefs.iter())
+            .map(|(l_i, r_i)| l_i.wrapping_add(*r_i))
+            .collect();
+
+        ResiduePoly { coefs }
     }
 
-    pub fn add_assign(&mut self, rhs: &ResiduePoly) {
-        for i in 0..N {
-            self.coefs[i] = self.coefs[i].wrapping_add(rhs.coefs[i]);
-        }
+    pub fn add_assign(&mut self, rhs: &ResiduePoly) -> &mut Self {
+        self.coefs = self
+            .coefs
+            .iter_mut()
+            .zip(rhs.coefs.iter())
+            .map(|(l_i, r_i)| l_i.wrapping_add(*r_i))
+            .collect();
+
+        self
     }
 
     pub fn add_constant(&self, constant: u32) -> Self {
@@ -40,27 +48,22 @@ impl ResiduePoly {
     }
 
     pub fn sub(&self, rhs: &ResiduePoly) -> Self {
-        let mut res = Self::default();
-        for i in 0..N {
-            res.coefs[i] = self.coefs[i].wrapping_sub(rhs.coefs[i]);
-        }
-        res
+        let coefs = self
+            .coefs
+            .iter()
+            .zip(rhs.coefs.iter())
+            .map(|(l_i, r_i)| l_i.wrapping_sub(*r_i))
+            .collect();
+
+        ResiduePoly { coefs }
     }
 
-    // TODO: use FFT for better performances
     pub fn mul(&self, rhs: &ResiduePoly) -> Self {
-        let mut coefs = Vec::<u32>::with_capacity(N);
-        for i in 0..N {
-            let mut coef = 0u32;
-            for j in 0..i + 1 {
-                coef = coef.wrapping_add(self.coefs[j].wrapping_mul(rhs.coefs[i - j]));
-            }
-            for j in i + 1..N {
-                coef = coef.wrapping_sub(self.coefs[j].wrapping_mul(rhs.coefs[N - j + i]));
-            }
-            coefs.push(coef);
-        }
-        ResiduePoly { coefs }
+        let mut res = ResiduePoly::default();
+
+        polynomial_karatsuba_wrapping_mul(&mut res.coefs, &self.coefs, &rhs.coefs);
+
+        res
     }
 
     /// Generates a residue polynomial with random coefficients in \[0..2^32)
@@ -113,6 +116,149 @@ impl Default for ResiduePoly {
             coefs: vec![0u32; N],
         }
     }
+}
+
+/// This algorithm is taken from the [TFHE-rs](https://github.com/zama-ai/tfhe-rs/blob/7c50216f7ad1d2dcb06803d3d665409ab731bd45/tfhe/src/core_crypto/algorithms/polynomial_algorithms.rs#L683) codebase.
+/// It performs a mulitplication of two elements of Z_{q}\[X\]/(X^N + 1) with q = 2^32, N = 1024 in time O(N^1.58).
+pub fn polynomial_karatsuba_wrapping_mul(output: &mut [u32], p: &[u32], q: &[u32]) {
+    let poly_size = output.len();
+
+    // check dimensions are a power of 2
+    assert!(poly_size.is_power_of_two());
+
+    // allocate slices for recursion
+    let mut a0 = vec![0u32; poly_size];
+    let mut a1 = vec![0u32; poly_size];
+    let mut a2 = vec![0u32; poly_size];
+    let mut input_a2_p = vec![0u32; poly_size / 2];
+    let mut input_a2_q = vec![0u32; poly_size / 2];
+
+    // prepare for splitting
+    let bottom = 0..(poly_size / 2);
+    let top = (poly_size / 2)..poly_size;
+
+    // induction
+    induction_karatsuba(&mut a0, &p[bottom.clone()], &q[bottom.clone()]);
+    induction_karatsuba(&mut a1, &p[top.clone()], &q[top.clone()]);
+    slice_wrapping_add(&mut input_a2_p, &p[bottom.clone()], &p[top.clone()]);
+    slice_wrapping_add(&mut input_a2_q, &q[bottom.clone()], &q[top.clone()]);
+    induction_karatsuba(&mut a2, &input_a2_p, &input_a2_q);
+
+    // rebuild the result
+    let output: &mut [u32] = output.as_mut();
+    slice_wrapping_sub(output, &a0, &a1);
+    slice_wrapping_sub_assign(&mut output[bottom.clone()], &a2[top.clone()]);
+    slice_wrapping_add_assign(&mut output[bottom.clone()], &a0[top.clone()]);
+    slice_wrapping_add_assign(&mut output[bottom.clone()], &a1[top.clone()]);
+    slice_wrapping_add_assign(&mut output[top.clone()], &a2[bottom.clone()]);
+    slice_wrapping_sub_assign(&mut output[top.clone()], &a0[bottom.clone()]);
+    slice_wrapping_sub_assign(&mut output[top], &a1[bottom]);
+}
+
+/// Compute the recursion for the karatsuba algorithm.
+fn induction_karatsuba(res: &mut [u32], p: &[u32], q: &[u32]) {
+    // stop the recursion when polynomials have KARATUSBA_STOP elements
+    if p.len() <= 64 {
+        // schoolbook algorithm
+        for (lhs_degree, &lhs_elt) in p.iter().enumerate() {
+            let res = &mut res[lhs_degree..];
+            for (&rhs_elt, res) in q.iter().zip(res) {
+                *res = (*res).wrapping_add(lhs_elt.wrapping_mul(rhs_elt));
+            }
+        }
+    } else {
+        let poly_size = res.len();
+
+        // allocate slices for the rec
+        let mut a0 = vec![0u32; poly_size / 2];
+        let mut a1 = vec![0u32; poly_size / 2];
+        let mut a2 = vec![0u32; poly_size / 2];
+        let mut input_a2_p = vec![0u32; poly_size / 4];
+        let mut input_a2_q = vec![0u32; poly_size / 4];
+
+        // prepare for splitting
+        let bottom = 0..(poly_size / 4);
+        let top = (poly_size / 4)..(poly_size / 2);
+
+        // rec
+        induction_karatsuba(&mut a0, &p[bottom.clone()], &q[bottom.clone()]);
+        induction_karatsuba(&mut a1, &p[top.clone()], &q[top.clone()]);
+        slice_wrapping_add(&mut input_a2_p, &p[bottom.clone()], &p[top.clone()]);
+        slice_wrapping_add(&mut input_a2_q, &q[bottom], &q[top]);
+        induction_karatsuba(&mut a2, &input_a2_p, &input_a2_q);
+
+        // rebuild the result
+        slice_wrapping_sub(&mut res[(poly_size / 4)..(3 * poly_size / 4)], &a2, &a0);
+        slice_wrapping_sub_assign(&mut res[(poly_size / 4)..(3 * poly_size / 4)], &a1);
+        slice_wrapping_add_assign(&mut res[0..(poly_size / 2)], &a0);
+        slice_wrapping_add_assign(&mut res[(poly_size / 2)..poly_size], &a1);
+    }
+}
+
+pub fn slice_wrapping_add(output: &mut [u32], lhs: &[u32], rhs: &[u32]) {
+    assert!(
+        lhs.len() == rhs.len(),
+        "lhs (len: {}) and rhs (len: {}) must have the same length",
+        lhs.len(),
+        rhs.len()
+    );
+    assert!(
+        output.len() == lhs.len(),
+        "output (len: {}) and rhs (len: {}) must have the same length",
+        output.len(),
+        lhs.len()
+    );
+
+    output
+        .iter_mut()
+        .zip(lhs.iter().zip(rhs.iter()))
+        .for_each(|(out, (&lhs, &rhs))| *out = lhs.wrapping_add(rhs));
+}
+
+pub fn slice_wrapping_add_assign(lhs: &mut [u32], rhs: &[u32]) {
+    assert!(
+        lhs.len() == rhs.len(),
+        "lhs (len: {}) and rhs (len: {}) must have the same length",
+        lhs.len(),
+        rhs.len()
+    );
+
+    lhs.iter_mut()
+        .zip(rhs.iter())
+        .for_each(|(lhs, &rhs)| *lhs = (*lhs).wrapping_add(rhs));
+}
+
+pub fn slice_wrapping_sub(output: &mut [u32], lhs: &[u32], rhs: &[u32]) {
+    assert!(
+        lhs.len() == rhs.len(),
+        "lhs (len: {}) and rhs (len: {}) must have the same length",
+        lhs.len(),
+        rhs.len()
+    );
+    assert!(
+        output.len() == lhs.len(),
+        "output (len: {}) and rhs (len: {}) must have the same length",
+        output.len(),
+        lhs.len()
+    );
+
+    output
+        .iter_mut()
+        .zip(lhs.iter().zip(rhs.iter()))
+        .for_each(|(out, (&lhs, &rhs))| *out = lhs.wrapping_sub(rhs));
+}
+
+pub fn slice_wrapping_sub_assign(lhs: &mut [u32], rhs: &[u32]) {
+    assert!(
+        lhs.len() == rhs.len(),
+        "lhs (len: {}) and rhs (len: {}) must have the same length",
+        lhs.len(),
+        rhs.len()
+    );
+
+    lhs.iter_mut()
+        .zip(rhs.iter())
+        .for_each(|(lhs, &rhs)| *lhs = (*lhs).wrapping_sub(rhs));
 }
 
 #[cfg(test)]

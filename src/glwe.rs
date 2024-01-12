@@ -177,7 +177,7 @@ mod tests {
     use rand::{thread_rng, Rng};
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_bootstrapping() {
         let sk1 = lwe_keygen();
         let sk2 = keygen();
