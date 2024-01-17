@@ -3,7 +3,7 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
 /// Represents an element of Z_{q}\[X\]/(X^N + 1) with implicit q = 2^32.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ResiduePoly {
     pub coefs: Vec<u32>,
 }

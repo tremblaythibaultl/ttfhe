@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 pub type BootstrappingKey = Vec<GgswCiphertext>;
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GgswCiphertext {
     z_m_gt: Vec<GlweCiphertext>,
 }

@@ -6,7 +6,7 @@ use crate::{k, poly::ResiduePoly, LWE_DIM, N};
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GlweCiphertext {
     pub mask: Vec<ResiduePoly>,
     pub body: ResiduePoly,
