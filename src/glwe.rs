@@ -13,7 +13,7 @@ pub struct GlweCiphertext {
 }
 
 /// Set of `k` polynomials in {0, 1}\[X\]/(X^N + 1).
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SecretKey {
     pub polys: Vec<ResiduePoly>,
 }
