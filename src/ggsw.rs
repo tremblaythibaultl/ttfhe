@@ -89,7 +89,8 @@ pub fn decomposition_8_2(val: u64) -> (i8, i8) {
     }
 }
 
-/// Ciphertext multiplexer. If `ctb` is an encryption of `1`, return `ct1`. Else, return `ct2`.
+/// Ciphertext multiplexer. If `ctb` is an encryption of `0`, return `ct1`. Else, return `ct2`.
+/// `ctb` is assumed to be an encryption of `0` or `1`.
 pub fn cmux(ctb: &GgswCiphertext, ct1: &GlweCiphertext, ct2: &GlweCiphertext) -> GlweCiphertext {
     let mut res = ct2.sub(ct1);
     res = ctb.external_product(&res);
